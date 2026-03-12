@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>myCFO — BTC/USD Signal Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+
+    <!-- HEADER -->
+    <header class="header">
+      <div class="header-left">
+        <span class="logo">myCFO</span>
+        <span class="strategy-tag">Jaime Merino Strategy · 4H</span>
+      </div>
+      <div class="header-right">
+        <div class="btc-price-block">
+          <span class="btc-label">BTC / USD</span>
+          <span class="btc-price" id="btc-price">—</span>
+          <span class="btc-change" id="btc-change"></span>
+        </div>
+      </div>
+    </header>
+
+    <main class="main">
+
+      <!-- SIGNAL CARD -->
+      <section class="signal-card" id="signal-card">
+        <div class="signal-top">
+          <div class="signal-badge-wrap">
+            <div class="signal-badge" id="signal-badge">
+              <span id="signal-text">LOADING</span>
+            </div>
+            <div class="signal-direction" id="signal-direction"></div>
+          </div>
+          <div class="signal-strength-block">
+            <div class="strength-label">Confluence</div>
+            <div class="strength-dots" id="strength-dots">
+              <span class="dot" id="dot-1"></span>
+              <span class="dot" id="dot-2"></span>
+              <span class="dot" id="dot-3"></span>
+              <span class="dot" id="dot-4"></span>
+              <span class="dot" id="dot-5"></span>
+            </div>
+            <div class="strength-text" id="strength-text">0 / 5 conditions met</div>
+          </div>
+        </div>
+        <div class="signal-subtitle" id="signal-subtitle">Connecting to Bitfinex market data…</div>
+      </section>
+
+      <!-- CAPITAL INPUT + TRADE PARAMS -->
+      <section class="trade-section">
+        <div class="capital-row">
+          <div class="capital-block">
+            <label class="field-label" for="capital-input">Your Capital (USD)</label>
+            <div class="capital-input-wrap">
+              <span class="currency-symbol">$</span>
+              <input
+                type="number"
+                id="capital-input"
+                class="capital-input"
+                value="5000"
+                min="1"
+                step="100"
+                placeholder="5000"
+              />
+            </div>
+          </div>
+          <div class="capital-note">10% of capital per trade</div>
+        </div>
+
+        <div class="params-grid" id="params-grid">
+          <div class="param-card">
+            <div class="param-label">Trade Size</div>
+            <div class="param-value" id="param-trade-size">—</div>
+          </div>
+          <div class="param-card">
+            <div class="param-label">Leverage</div>
+            <div class="param-value accent" id="param-leverage">—</div>
+          </div>
+          <div class="param-card">
+            <div class="param-label">Entry Price</div>
+            <div class="param-value" id="param-entry">—</div>
+          </div>
+          <div class="param-card">
+            <div class="param-label">Stop Loss (−7%)</div>
+            <div class="param-value danger" id="param-stoploss">—</div>
+          </div>
+          <div class="param-card">
+            <div class="param-label">Max Loss</div>
+            <div class="param-value danger" id="param-maxloss">—</div>
+          </div>
+          <div class="param-card">
+            <div class="param-label">Exit When</div>
+            <div class="param-value success" id="param-tp">Signal reverses</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- CONDITIONS -->
+      <section class="conditions-section">
+        <div class="section-header">
+          <h2 class="section-title">Entry Conditions</h2>
+          <span class="conditions-badge" id="conditions-badge">0 / 5</span>
+        </div>
+        <div class="conditions-list" id="conditions-list">
+          <div class="condition-loading">Analyzing…</div>
+        </div>
+      </section>
+
+      <!-- INDICATOR READINGS -->
+      <section class="indicators-section">
+        <h2 class="section-title">Live Indicator Readings</h2>
+        <div class="indicators-grid" id="indicators-grid">
+          <div class="indicator-card">
+            <div class="ind-name">EMA 50</div>
+            <div class="ind-value" id="ind-ema50">—</div>
+          </div>
+          <div class="indicator-card">
+            <div class="ind-name">EMA 100</div>
+            <div class="ind-value" id="ind-ema100">—</div>
+          </div>
+          <div class="indicator-card">
+            <div class="ind-name">EMA 200</div>
+            <div class="ind-value" id="ind-ema200">—</div>
+          </div>
+          <div class="indicator-card">
+            <div class="ind-name">RSI (14)</div>
+            <div class="ind-value" id="ind-rsi">—</div>
+          </div>
+          <div class="indicator-card">
+            <div class="ind-name">ADX (14)</div>
+            <div class="ind-value" id="ind-adx">—</div>
+          </div>
+          <div class="indicator-card">
+            <div class="ind-name">BB Upper</div>
+            <div class="ind-value" id="ind-bb-upper">—</div>
+          </div>
+          <div class="indicator-card">
+            <div class="ind-name">BB Lower</div>
+            <div class="ind-value" id="ind-bb-lower">—</div>
+          </div>
+          <div class="indicator-card">
+            <div class="ind-name">Squeeze</div>
+            <div class="ind-value" id="ind-squeeze">—</div>
+          </div>
+          <div class="indicator-card">
+            <div class="ind-name">Vol POC</div>
+            <div class="ind-value" id="ind-poc">—</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- REFRESH STATUS -->
+      <section class="refresh-section">
+        <div class="refresh-row">
+          <div class="refresh-times">
+            <span>Last update: <strong id="last-update">—</strong></span>
+            <span>Next candle: <strong id="next-candle">—</strong></span>
+          </div>
+          <button class="refresh-btn" id="refresh-btn" onclick="manualRefresh()">
+            ↻ Refresh Now
+          </button>
+        </div>
+        <div class="countdown-bar-wrap">
+          <div class="countdown-bar" id="countdown-bar"></div>
+        </div>
+      </section>
+
+    </main>
+
+    <footer class="footer">
+      ⚠️ This tool is for informational purposes only. Not financial advice.
+      Always manage your risk. Past performance does not guarantee future results.
+    </footer>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
