@@ -553,15 +553,17 @@ function updateUI(r, capital) {
   el('param-maxloss').textContent    = showTrade ? fmtUSD(r.maxLoss)             : '—';
 
   // Take Profit
-  el('param-tp').textContent         = showTrade ? '$' + fmt(r.takeProfit)        : '—';
-  el('param-tp-pct').textContent     = showTrade
-    ? `+${(r.tpPct * 100).toFixed(0)}% desde entrada (2:1 R/R)`
+  const tpPrice = (r.takeProfit && !isNaN(r.takeProfit)) ? r.takeProfit : null;
+  el('param-tp').textContent     = (showTrade && tpPrice) ? '$' + fmt(tpPrice) : '—';
+  el('param-tp-pct').textContent = (showTrade && tpPrice)
+    ? `${(r.tpPct * 100).toFixed(0)}% move from entry (2:1 R/R)`
     : '';
 
   // Estimated Profit
-  el('param-profit').textContent     = showTrade ? fmtUSD(r.estimatedProfit)      : '—';
-  el('param-profit-detail').textContent = showTrade
-    ? `$${fmt(r.tradeSize)} × ${r.leverage}x × ${(r.tpPct * 100).toFixed(0)}%`
+  const estProfit = (r.estimatedProfit && !isNaN(r.estimatedProfit)) ? r.estimatedProfit : null;
+  el('param-profit').textContent        = (showTrade && estProfit) ? fmtUSD(estProfit) : '—';
+  el('param-profit-detail').textContent = (showTrade && estProfit)
+    ? `$${fmt(r.tradeSize)} × ${r.leverage}x lev × ${(r.tpPct * 100).toFixed(0)}%`
     : '';
 
   // Conditions
