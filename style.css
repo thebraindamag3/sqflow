@@ -31,6 +31,11 @@
   --accent:        #3d8ef8;
   --accent-dim:    #3d8ef815;
   --warning:       #f5a623;
+  --warning-dim:   #f5a62310;
+  --warning-border:#f5a62340;
+  --caution:       #ff9800;
+  --caution-dim:   #ff980010;
+  --caution-border:#ff980040;
   --danger:        #ff4c6a;
   --success:       #00e676;
 
@@ -503,10 +508,10 @@ html, body {
   margin-bottom: 14px;
   transition: border-color 0.3s, background 0.3s;
 }
-.exit-status-bar.status-hold    { border-color: var(--long-border);  background: var(--long-dim); }
-.exit-status-bar.status-watch   { border-color: #f5a62340; background: #f5a62310; }
-.exit-status-bar.status-caution { border-color: #ff980040; background: #ff980010; }
-.exit-status-bar.status-exit    { border-color: var(--short-border); background: var(--short-dim); }
+.exit-status-bar.status-hold    { border-color: var(--long-border);    background: var(--long-dim); }
+.exit-status-bar.status-watch   { border-color: var(--warning-border); background: var(--warning-dim); }
+.exit-status-bar.status-caution { border-color: var(--caution-border); background: var(--caution-dim); }
+.exit-status-bar.status-exit    { border-color: var(--short-border);   background: var(--short-dim); }
 
 .exit-status-dot {
   width: 12px;
@@ -516,8 +521,8 @@ html, body {
   background: var(--text-muted);
 }
 .exit-status-bar.status-hold    .exit-status-dot { background: var(--long);    box-shadow: 0 0 8px var(--long); }
-.exit-status-bar.status-watch   .exit-status-dot { background: #f5a623; box-shadow: 0 0 8px #f5a623; }
-.exit-status-bar.status-caution .exit-status-dot { background: #ff9800; box-shadow: 0 0 8px #ff9800; }
+.exit-status-bar.status-watch   .exit-status-dot { background: var(--warning); box-shadow: 0 0 8px var(--warning); }
+.exit-status-bar.status-caution .exit-status-dot { background: var(--caution); box-shadow: 0 0 8px var(--caution); }
 .exit-status-bar.status-exit    .exit-status-dot { background: var(--short);   box-shadow: 0 0 8px var(--short); animation: blink 0.8s infinite; }
 
 @keyframes blink {
@@ -530,8 +535,8 @@ html, body {
   font-weight: 700;
 }
 .exit-status-bar.status-hold    .exit-status-text { color: var(--long); }
-.exit-status-bar.status-watch   .exit-status-text { color: #f5a623; }
-.exit-status-bar.status-caution .exit-status-text { color: #ff9800; }
+.exit-status-bar.status-watch   .exit-status-text { color: var(--warning); }
+.exit-status-bar.status-caution .exit-status-text { color: var(--caution); }
 .exit-status-bar.status-exit    .exit-status-text { color: var(--short); }
 
 /* Exit tips */
@@ -552,8 +557,8 @@ html, body {
   line-height: 1.5;
 }
 .exit-tip.tip-hold    { border-left-color: var(--long); }
-.exit-tip.tip-watch   { border-left-color: #f5a623; }
-.exit-tip.tip-caution { border-left-color: #ff9800; }
+.exit-tip.tip-watch   { border-left-color: var(--warning); }
+.exit-tip.tip-caution { border-left-color: var(--caution); }
 .exit-tip.tip-exit    { border-left-color: var(--short); color: var(--short); font-weight: 600; }
 
 .monitor-footer {

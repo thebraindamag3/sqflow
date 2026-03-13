@@ -16,10 +16,10 @@
         <div class="header-meta">
           <span class="strategy-tag">Jaime Merino Strategy</span>
           <div class="tf-selector">
-            <button class="tf-btn" data-tf="1h" onclick="switchTimeframe('1h')">1H</button>
-            <button class="tf-btn active" data-tf="4h" onclick="switchTimeframe('4h')">4H</button>
-            <button class="tf-btn" data-tf="1d" onclick="switchTimeframe('1d')">1D</button>
-            <button class="tf-btn" data-tf="1w" onclick="switchTimeframe('1w')">1W</button>
+            <button class="tf-btn" data-tf="1h">1H</button>
+            <button class="tf-btn active" data-tf="4h">4H</button>
+            <button class="tf-btn" data-tf="1d">1D</button>
+            <button class="tf-btn" data-tf="1w">1W</button>
           </div>
         </div>
       </div>
@@ -34,8 +34,8 @@
 
     <!-- TAB NAVIGATION -->
     <nav class="tab-nav">
-      <button class="tab-nav-btn active" data-tab="dashboard" onclick="switchTab('dashboard')">Dashboard</button>
-      <button class="tab-nav-btn" data-tab="history" onclick="switchTab('history')">
+      <button class="tab-nav-btn active" data-tab="dashboard">Dashboard</button>
+      <button class="tab-nav-btn" data-tab="history">
         History
         <span class="tab-badge" id="history-tab-badge" style="display:none"></span>
       </button>
@@ -69,7 +69,7 @@
           <div class="signal-subtitle" id="signal-subtitle">Connecting to Bitfinex market data…</div>
           <!-- Enter Trade button — visible only when signal is active -->
           <div class="enter-trade-wrap" id="enter-trade-wrap" style="display:none">
-            <button class="enter-trade-btn" id="enter-trade-btn" onclick="enterTrade()">
+            <button class="enter-trade-btn" id="enter-trade-btn">
               ⚡ Enter Trade at Market Price
             </button>
             <div class="enter-trade-note">Records your entry and starts 30s exit monitoring</div>
@@ -83,7 +83,7 @@
               <span class="monitor-badge" id="monitor-badge">LONG ACTIVE</span>
               <span class="monitor-since" id="monitor-since"></span>
             </div>
-            <button class="close-trade-btn" onclick="closeTrade()">✕ Close Trade</button>
+            <button class="close-trade-btn" id="close-trade-btn">✕ Close Trade</button>
           </div>
 
           <!-- P&L -->
@@ -231,7 +231,7 @@
               <span>Last update: <strong id="last-update">—</strong></span>
               <span>Next candle: <strong id="next-candle">—</strong></span>
             </div>
-            <button class="refresh-btn" id="refresh-btn" onclick="manualRefresh()">
+            <button class="refresh-btn" id="refresh-btn">
               ↻ Refresh Now
             </button>
           </div>
@@ -250,8 +250,8 @@
           <h2 class="section-title">Trade History</h2>
           <div class="history-header-right">
             <span class="history-count" id="history-count">0 trades</span>
-            <button class="export-history-btn" onclick="exportTradeHistory()">⬇ Export JSON</button>
-            <button class="clear-history-btn" onclick="clearTradeHistory()">Clear All</button>
+            <button class="export-history-btn" id="export-history-btn">⬇ Export JSON</button>
+            <button class="clear-history-btn" id="clear-history-btn">Clear All</button>
           </div>
         </div>
         <div class="history-list" id="history-list"></div>
@@ -268,6 +268,6 @@
 
   </div>
 
-  <script src="app.js?v=9"></script>
+  <script src="app.js?v=10"></script>
 </body>
 </html>
