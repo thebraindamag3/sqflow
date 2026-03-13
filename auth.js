@@ -250,7 +250,7 @@ const Auth = (() => {
   // ── Auth operations ─────────────────────────────────────────
 
   async function signInWithGoogle() {
-    if (!_auth) throw new Error('Firebase not configured. Please set up FIREBASE_CONFIG in auth.js.');
+    if (!_auth) throw new Error('Google sign-in is not yet configured. The Firebase project credentials need to be added to enable this provider.');
     const provider = new firebase.auth.GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
     try { return await _auth.signInWithPopup(provider); }
@@ -258,7 +258,7 @@ const Auth = (() => {
   }
 
   async function signInWithApple() {
-    if (!_auth) throw new Error('Firebase not configured. Please set up FIREBASE_CONFIG in auth.js.');
+    if (!_auth) throw new Error('Apple sign-in is not yet configured. The Firebase project credentials need to be added to enable this provider.');
     // Note: Apple Sign-In requires additional setup in Firebase console
     // and an Apple Developer account with Services ID configuration.
     const provider = new firebase.auth.OAuthProvider('apple.com');
@@ -269,7 +269,7 @@ const Auth = (() => {
   }
 
   async function signInWithTwitter() {
-    if (!_auth) throw new Error('Firebase not configured. Please set up FIREBASE_CONFIG in auth.js.');
+    if (!_auth) throw new Error('X (Twitter) sign-in is not yet configured. The Firebase project credentials need to be added to enable this provider.');
     const provider = new firebase.auth.TwitterAuthProvider();
     try { return await _auth.signInWithPopup(provider); }
     catch (e) { throw new Error(_sanitizeError(e.code)); }
@@ -420,7 +420,7 @@ const Auth = (() => {
       ? '••••••••'
       : 'Min 8 chars, uppercase, number, symbol';
 
-    const providerSection = _isFirebaseConfigured() ? `
+    const providerSection = `
       <div class="auth-providers">
         <button class="auth-provider-btn auth-google" id="btn-google">
           <svg class="provider-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -445,7 +445,7 @@ const Auth = (() => {
         </button>
       </div>
       <div class="auth-divider"><span>or</span></div>
-    ` : '';
+    `;
 
     return `
       <div class="auth-modal" role="dialog" aria-modal="true" aria-label="Sign in to myCFO">
@@ -479,6 +479,8 @@ const Auth = (() => {
             ? 'Don\'t have an account? <button class="auth-toggle-btn" id="auth-mode-toggle" type="button">Create one</button>'
             : 'Already have an account? <button class="auth-toggle-btn" id="auth-mode-toggle" type="button">Sign in</button>'}
         </div>
+
+        <div class="auth-divider"><span>or</span></div>
 
         <div class="auth-guest-wrap">
           <button class="auth-guest-btn" id="btn-guest" type="button">Continue as Guest</button>
