@@ -1,9 +1,9 @@
 // ============================================================
 // myCFO — Jaime Merino Strategy Signal Engine
-// BTC/USD · Bitfinex
+// Multi-Asset · Bitfinex / Binance
 // ============================================================
 
-const APP_VERSION = 'v1.3.0';
+const APP_VERSION = 'v1.4.0';
 
 // Increment SCHEMA_VERSION whenever the stored trade schema changes.
 // On mismatch, open trades are auto-closed gracefully before migration.
@@ -29,6 +29,92 @@ const STRATEGY = {
   CAPITAL_PCT:        0.10,   // 10% of capital per trade
 };
 
+// ── Asset registry ─────────────────────────────────────────
+const ASSETS = {
+  // Futures — Indices
+  'ES1!':  { name: 'S&P 500 E-mini',     category: 'Futures — Indices',      market: 'cme',   bitfinex: null, binance: null },
+  'NQ1!':  { name: 'Nasdaq 100 E-mini',   category: 'Futures — Indices',      market: 'cme',   bitfinex: null, binance: null },
+  'YM1!':  { name: 'Dow Jones E-mini',    category: 'Futures — Indices',      market: 'cme',   bitfinex: null, binance: null },
+  'RTY1!': { name: 'Russell 2000 E-mini', category: 'Futures — Indices',      market: 'cme',   bitfinex: null, binance: null },
+  'DAX1!': { name: 'DAX Futures',         category: 'Futures — Indices',      market: 'eurex', bitfinex: null, binance: null },
+  'NKD1!': { name: 'Nikkei 225 Futures',  category: 'Futures — Indices',      market: 'cme',   bitfinex: null, binance: null },
+  // Futures — Commodities
+  'GC1!':  { name: 'Gold',                category: 'Futures — Commodities',  market: 'cme',   bitfinex: null, binance: null },
+  'SI1!':  { name: 'Silver',              category: 'Futures — Commodities',  market: 'cme',   bitfinex: null, binance: null },
+  'CL1!':  { name: 'Crude Oil WTI',       category: 'Futures — Commodities',  market: 'cme',   bitfinex: null, binance: null },
+  'NG1!':  { name: 'Natural Gas',         category: 'Futures — Commodities',  market: 'cme',   bitfinex: null, binance: null },
+  'HG1!':  { name: 'Copper',              category: 'Futures — Commodities',  market: 'cme',   bitfinex: null, binance: null },
+  // FX Pairs
+  'GBP/USD': { name: 'British Pound',     category: 'FX Pairs', market: 'forex', bitfinex: null, binance: null },
+  'EUR/USD': { name: 'Euro',              category: 'FX Pairs', market: 'forex', bitfinex: null, binance: null },
+  'USD/JPY': { name: 'Japanese Yen',      category: 'FX Pairs', market: 'forex', bitfinex: null, binance: null },
+  'AUD/USD': { name: 'Australian Dollar', category: 'FX Pairs', market: 'forex', bitfinex: null, binance: null },
+  'USD/CHF': { name: 'Swiss Franc',       category: 'FX Pairs', market: 'forex', bitfinex: null, binance: null },
+  // Crypto
+  'BTC/USD': { name: 'Bitcoin',   category: 'Crypto', market: 'crypto', bitfinex: 'tBTCUSD', binance: 'BTCUSDT' },
+  'ETH/USD': { name: 'Ethereum',  category: 'Crypto', market: 'crypto', bitfinex: 'tETHUSD', binance: 'ETHUSDT' },
+  'SOL/USD': { name: 'Solana',    category: 'Crypto', market: 'crypto', bitfinex: 'tSOLUSD', binance: 'SOLUSDT' },
+  'XRP/USD': { name: 'XRP',       category: 'Crypto', market: 'crypto', bitfinex: 'tXRPUSD', binance: 'XRPUSDT' },
+  'ADA/USD': { name: 'Cardano',   category: 'Crypto', market: 'crypto', bitfinex: 'tADAUSD', binance: 'ADAUSDT' },
+  'DOT/USD': { name: 'Polkadot',  category: 'Crypto', market: 'crypto', bitfinex: 'tDOTUSD', binance: 'DOTUSDT' },
+};
+
+// ── Market hours ───────────────────────────────────────────
+function getETTime() {
+  const now = new Date();
+  const etStr = now.toLocaleString('en-US', { timeZone: 'America/New_York' });
+  const et = new Date(etStr);
+  return { hour: et.getHours(), minute: et.getMinutes(), day: et.getDay() };
+}
+
+function isMarketOpen(assetKey) {
+  const asset = ASSETS[assetKey || state.currentAsset];
+  if (!asset) return true;
+  const { market } = asset;
+
+  if (market === 'crypto') return true;
+
+  const { hour, minute, day } = getETTime();
+  const t = hour * 60 + minute;
+
+  if (market === 'cme') {
+    // Sun–Fri 18:00–17:00 ET, daily break 17:00–18:00 ET
+    if (day === 6) return false;                          // Saturday closed
+    if (day === 0 && t < 18 * 60) return false;           // Sunday before 18:00
+    if (day === 5 && t >= 17 * 60) return false;           // Friday after 17:00
+    if (t >= 17 * 60 && t < 18 * 60) return false;        // daily break
+    return true;
+  }
+
+  if (market === 'eurex') {
+    // Mon–Fri 02:00–22:00 ET
+    if (day === 0 || day === 6) return false;
+    return t >= 2 * 60 && t < 22 * 60;
+  }
+
+  if (market === 'forex') {
+    // Sun 17:00 ET → Fri 17:00 ET, continuous
+    if (day === 6) return false;
+    if (day === 0 && t < 17 * 60) return false;
+    if (day === 5 && t >= 17 * 60) return false;
+    return true;
+  }
+
+  return true;
+}
+
+function getMarketScheduleLabel(assetKey) {
+  const asset = ASSETS[assetKey || state.currentAsset];
+  if (!asset) return '';
+  const labels = {
+    cme:   'Sun–Fri 18:00–17:00 ET (break 17:00–18:00)',
+    eurex: 'Mon–Fri 02:00–22:00 ET',
+    forex: 'Sun 17:00 ET – Fri 17:00 ET',
+    crypto:'24/7',
+  };
+  return labels[asset.market] || '';
+}
+
 // User's local timezone abbreviation (e.g. "CET", "EST", "GMT+5")
 const USER_TZ_ABBR = (() => {
   try {
@@ -38,18 +124,27 @@ const USER_TZ_ABBR = (() => {
   } catch { return ''; }
 })();
 
-// Timeframe → API interval mapping
-function getApiUrls(tf) {
+// Timeframe → API interval mapping (multi-asset aware)
+function getApiUrls(tf, assetKey) {
+  const asset = ASSETS[assetKey || state.currentAsset];
   const bfxTf = { '1h': '1h', '4h': '4h', '1d': '1D', '1w': '7D' }[tf] || '4h';
   const bnbTf = { '1h': '1h', '4h': '4h', '1d': '1d', '1w': '1w' }[tf] || '4h';
-  return {
-    bitfinex: `https://api-pub.bitfinex.com/v2/candles/trade:${bfxTf}:tBTCUSD/hist?limit=${STRATEGY.CANDLE_LIMIT}&sort=1`,
-    binance:  `https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=${bnbTf}&limit=${STRATEGY.CANDLE_LIMIT}`,
-  };
+
+  if (asset && asset.bitfinex && asset.binance) {
+    return {
+      bitfinex: `https://api-pub.bitfinex.com/v2/candles/trade:${bfxTf}:${asset.bitfinex}/hist?limit=${STRATEGY.CANDLE_LIMIT}&sort=1`,
+      binance:  `https://api.binance.com/api/v3/klines?symbol=${asset.binance}&interval=${bnbTf}&limit=${STRATEGY.CANDLE_LIMIT}`,
+    };
+  }
+
+  // Non-crypto assets: no free CORS-friendly candle API available client-side.
+  // Return null — fetchCandles will surface a clear message.
+  return null;
 }
 
 // ── Application state ────────────────────────────────────────
 const state = {
+  currentAsset:     'BTC/USD',
   currentTimeframe: '4h',
   refreshTimer:     null,
   countdownInterval:null,
@@ -606,9 +701,11 @@ function analyzeExitSignals(candles, trade) {
 
 function enterTrade() {
   if (!state.lastResult || state.lastResult.signal === 'WAIT') return;
+  if (!isMarketOpen()) return;
 
   const trade = {
     id:         String(Date.now()) + Math.random().toString(36).slice(2, 6),
+    asset:      state.currentAsset,
     direction:  state.lastResult.direction,
     entryPrice: state.lastResult.currentPrice,
     entryTime:  Date.now(),
@@ -711,7 +808,7 @@ function buildTradeCardHTML(trade) {
       <div class="monitor-left">
         <span class="monitor-badge${isShort ? ' short' : ''}">${isShort ? 'SHORT ACTIVE' : 'LONG ACTIVE'}</span>
         <span class="monitor-since">${buildSince(trade.entryTime)}</span>
-        <span class="monitor-tf-tag">${trade.timeframe.toUpperCase()} · BTC/USD</span>
+        <span class="monitor-tf-tag">${trade.timeframe.toUpperCase()} · ${trade.asset || 'BTC/USD'}</span>
       </div>
       <button class="close-trade-btn">✕ Close Trade</button>
     </div>
@@ -829,16 +926,18 @@ function ensureMonitorRunning() {
   state.monitorInterval = setInterval(async () => {
     if (state.activeTrades.length === 0) { stopTradeMonitor(); return; }
 
-    // Group trades by timeframe to minimise API calls
-    const byTf = {};
+    // Group trades by timeframe+asset to minimise API calls
+    const byKey = {};
     state.activeTrades.forEach(t => {
-      (byTf[t.timeframe] = byTf[t.timeframe] || []).push(t);
+      const k = `${t.timeframe}|${t.asset || 'BTC/USD'}`;
+      (byKey[k] = byKey[k] || []).push(t);
     });
 
-    for (const [tf, trades] of Object.entries(byTf)) {
+    for (const [key, trades] of Object.entries(byKey)) {
+      const [tf, asset] = key.split('|');
       try {
-        const candles = await fetchCandles(tf);
-        if (tf === state.currentTimeframe) state.lastCandles = candles;
+        const candles = await fetchCandles(tf, asset);
+        if (tf === state.currentTimeframe && asset === state.currentAsset) state.lastCandles = candles;
         trades.forEach(trade => {
           const exit = analyzeExitSignals(candles, trade);
           updateTradeCard(trade.id, exit);
@@ -919,7 +1018,7 @@ function saveTradeToHistory(trade, exitPrice, reason, notes) {
 
   const record = {
     id:           exitTime,
-    asset:        'BTC/USD',
+    asset:        trade.asset || state.currentAsset,
     direction:    trade.direction,
     timeframe:    trade.timeframe || state.currentTimeframe,
     entryPrice:   trade.entryPrice,
@@ -1069,8 +1168,14 @@ function renderTradeHistory() {
 // FETCH CANDLES — Bitfinex with Binance fallback
 // ============================================================
 
-async function fetchCandles(tf) {
-  const urls = getApiUrls(tf || state.currentTimeframe);
+async function fetchCandles(tf, assetKey) {
+  const key  = assetKey || state.currentAsset;
+  const urls = getApiUrls(tf || state.currentTimeframe, key);
+
+  if (!urls) {
+    throw new Error(`No data provider configured for ${key}. Futures and FX require a server-side data proxy.`);
+  }
+
   try {
     const res = await fetch(urls.bitfinex);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -1112,7 +1217,9 @@ function fmt(n) {
   if (n === null || n === undefined || isNaN(n)) return '—';
   if (n >= 10000) return n.toLocaleString('en-US', { maximumFractionDigits: 0 });
   if (n >= 1000)  return n.toLocaleString('en-US', { maximumFractionDigits: 1 });
-  return n.toFixed(2);
+  if (n >= 10)    return n.toFixed(2);
+  if (n >= 1)     return n.toFixed(4);    // forex pairs like EUR/USD ≈ 1.08
+  return n.toFixed(6);                     // sub-dollar assets
 }
 
 function fmtUSD(n) {
@@ -1196,14 +1303,31 @@ function buildSignalSubtitle(r) {
 }
 
 function updateUI(r, capital) {
+  // Asset label
+  const labelEl = el('asset-label');
+  if (labelEl) labelEl.textContent = state.currentAsset;
+
+  // Market status
+  const marketOpen = isMarketOpen();
+  const statusEl   = el('market-status');
+  if (statusEl) {
+    if (marketOpen) {
+      statusEl.textContent = 'Open';
+      statusEl.className   = 'market-status open';
+    } else {
+      statusEl.textContent = 'Market Closed';
+      statusEl.className   = 'market-status closed';
+    }
+  }
+
   // Price
-  const priceEl = el('btc-price');
+  const priceEl = el('asset-price');
   priceEl.textContent = '$' + fmt(r.currentPrice);
 
-  const changeEl  = el('btc-change');
+  const changeEl  = el('asset-change');
   const changePct = ((r.currentPrice - r.prevClose) / r.prevClose) * 100;
   changeEl.textContent = (changePct >= 0 ? '+' : '') + changePct.toFixed(2) + '%';
-  changeEl.className   = 'btc-change ' + (changePct >= 0 ? 'up' : 'down');
+  changeEl.className   = 'asset-change ' + (changePct >= 0 ? 'up' : 'down');
 
   // Signal
   setSignalCard(r.signal);
@@ -1238,8 +1362,8 @@ function updateUI(r, capital) {
   renderConditions(r.conditions, r.direction);
   renderIndicators(r);
 
-  // Enter Trade button — always visible when signal is active (multiple trades are supported)
-  if (r.signal !== 'WAIT') {
+  // Enter Trade button — visible when signal is active AND market is open
+  if (r.signal !== 'WAIT' && marketOpen) {
     showEnterButton(r.signal);
   } else {
     el('enter-trade-wrap').style.display = 'none';
@@ -1369,6 +1493,23 @@ async function run() {
   btn.disabled = true;
   btn.textContent = '↻ Loading…';
 
+  // Update market status badge
+  const marketOpen = isMarketOpen();
+  const statusEl   = el('market-status');
+  if (statusEl) {
+    if (marketOpen) {
+      statusEl.textContent = 'Open';
+      statusEl.className   = 'market-status open';
+    } else {
+      statusEl.textContent = 'Market Closed';
+      statusEl.className   = 'market-status closed';
+    }
+  }
+
+  // Update asset label
+  const labelEl = el('asset-label');
+  if (labelEl) labelEl.textContent = state.currentAsset;
+
   try {
     const candles = await fetchCandles();
     state.lastCandles   = candles;
@@ -1380,7 +1521,11 @@ async function run() {
     console.error('Error fetching data:', err);
     el('signal-text').textContent = 'ERROR';
     el('signal-subtitle').textContent =
-      `Could not load market data: ${err.message}. Check your internet connection and try again.`;
+      `Could not load market data for ${state.currentAsset}: ${err.message}`;
+    // Still update price display for context
+    const priceEl = el('asset-price');
+    if (priceEl) priceEl.textContent = '—';
+    el('enter-trade-wrap').style.display = 'none';
   } finally {
     btn.disabled    = false;
     btn.textContent = '↻ Refresh Now';
@@ -1414,6 +1559,104 @@ function onCapitalChange() {
   el('param-profit-detail').textContent = show
     ? `$${fmt(tradeSize)} × ${state.lastResult.leverage}x × ${(state.lastResult.tpPct * 100).toFixed(0)}%`
     : '';
+}
+
+// ============================================================
+// ASSET SELECTOR
+// ============================================================
+
+function buildAssetSelector() {
+  const container = el('asset-selector-dropdown');
+  if (!container) return;
+
+  // Group assets by category
+  const groups = {};
+  for (const [key, asset] of Object.entries(ASSETS)) {
+    if (!groups[asset.category]) groups[asset.category] = [];
+    groups[asset.category].push({ key, ...asset });
+  }
+
+  container.innerHTML = '';
+  for (const [category, assets] of Object.entries(groups)) {
+    const groupEl = document.createElement('div');
+    groupEl.className = 'asset-group';
+
+    const labelEl = document.createElement('div');
+    labelEl.className = 'asset-group-label';
+    labelEl.textContent = category;
+    groupEl.appendChild(labelEl);
+
+    assets.forEach(a => {
+      const item = document.createElement('button');
+      item.className = 'asset-item' + (a.key === state.currentAsset ? ' selected' : '');
+      if (!a.bitfinex && !a.binance) item.classList.add('no-data');
+
+      const open = isMarketOpen(a.key);
+      const dot  = a.market === 'crypto' ? '🟢' : (open ? '🟢' : '🔴');
+
+      item.innerHTML = `
+        <span class="asset-item-symbol">${a.key}</span>
+        <span class="asset-item-name">${a.name}</span>
+        <span class="asset-item-status">${dot}</span>
+      `;
+      item.addEventListener('click', () => {
+        switchAsset(a.key);
+        toggleAssetSelector(false);
+      });
+      groupEl.appendChild(item);
+    });
+
+    container.appendChild(groupEl);
+  }
+}
+
+function toggleAssetSelector(forceState) {
+  const dropdown = el('asset-selector-dropdown');
+  if (!dropdown) return;
+  const isOpen = forceState !== undefined ? forceState : !dropdown.classList.contains('open');
+  dropdown.classList.toggle('open', isOpen);
+
+  if (isOpen) {
+    buildAssetSelector(); // refresh market status dots
+    // Close on outside click
+    setTimeout(() => {
+      document.addEventListener('click', closeAssetSelectorOnOutside, { once: true });
+    }, 0);
+  }
+}
+
+function closeAssetSelectorOnOutside(e) {
+  const dropdown = el('asset-selector-dropdown');
+  const trigger  = el('asset-selector-trigger');
+  if (dropdown && !dropdown.contains(e.target) && trigger && !trigger.contains(e.target)) {
+    dropdown.classList.remove('open');
+  } else if (dropdown && dropdown.classList.contains('open')) {
+    // Re-attach if click was inside
+    setTimeout(() => {
+      document.addEventListener('click', closeAssetSelectorOnOutside, { once: true });
+    }, 0);
+  }
+}
+
+function switchAsset(key) {
+  if (!ASSETS[key]) return;
+  state.currentAsset = key;
+  state.lastCandles  = null;
+  state.lastResult   = null;
+
+  // Update UI elements
+  const labelEl = el('asset-label');
+  if (labelEl) labelEl.textContent = key;
+
+  // Update selected state in dropdown
+  document.querySelectorAll('.asset-item').forEach(item => {
+    item.classList.toggle('selected', item.querySelector('.asset-item-symbol').textContent === key);
+  });
+
+  // Reset and re-run
+  clearTimeout(state.refreshTimer);
+  clearInterval(state.countdownInterval);
+  run();
 }
 
 // ============================================================
@@ -1459,11 +1702,16 @@ function bindEvents() {
   el('export-history-btn').addEventListener('click', exportTradeHistory);
   el('clear-history-btn').addEventListener('click', clearTradeHistory);
   el('capital-input').addEventListener('change', onCapitalChange);
+
+  // Asset selector
+  const trigger = el('asset-selector-trigger');
+  if (trigger) trigger.addEventListener('click', () => toggleAssetSelector());
 }
 
 function init() {
   bindEvents();
   initFooter();
+  buildAssetSelector();
   document.querySelectorAll('.tf-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.tf === state.currentTimeframe);
   });

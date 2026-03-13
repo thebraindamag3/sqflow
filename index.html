@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>myCFO — BTC/USD Signal Dashboard</title>
+  <title>myCFO — Multi-Asset Signal Dashboard</title>
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="auth.css" />
 </head>
@@ -27,10 +27,19 @@
       <div class="header-right">
         <!-- User avatar + name + sign-out (shown when authenticated) -->
         <div id="header-user"></div>
-        <div class="btc-price-block">
-          <span class="btc-label">BTC / USD</span>
-          <span class="btc-price" id="btc-price">—</span>
-          <span class="btc-change" id="btc-change"></span>
+        <div class="asset-selector-wrap">
+          <button class="asset-selector-trigger" id="asset-selector-trigger">
+            <span class="asset-label" id="asset-label">BTC / USD</span>
+            <span class="asset-selector-arrow">▾</span>
+          </button>
+          <div class="asset-selector-dropdown" id="asset-selector-dropdown"></div>
+        </div>
+        <div class="asset-price-block">
+          <div class="asset-price-row">
+            <span class="asset-price" id="asset-price">—</span>
+            <span class="market-status open" id="market-status">Open</span>
+          </div>
+          <span class="asset-change" id="asset-change"></span>
         </div>
       </div>
     </header>
@@ -72,7 +81,7 @@
               <div class="strength-text" id="strength-text">0 / 5 conditions met</div>
             </div>
           </div>
-          <div class="signal-subtitle" id="signal-subtitle">Connecting to Bitfinex market data…</div>
+          <div class="signal-subtitle" id="signal-subtitle">Connecting to market data…</div>
           <!-- Enter Trade button — visible only when signal is active -->
           <div class="enter-trade-wrap" id="enter-trade-wrap" style="display:none">
             <button class="enter-trade-btn" id="enter-trade-btn">

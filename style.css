@@ -186,21 +186,141 @@ html, body {
   line-height: 1.6;
 }
 
-.btc-price-block {
+/* ============================================================
+   ASSET SELECTOR
+   ============================================================ */
+.asset-selector-wrap {
+  position: relative;
+}
+
+.asset-selector-trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+.asset-selector-trigger:hover {
+  border-color: var(--accent);
+  background: var(--bg-card-hover);
+}
+
+.asset-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.asset-selector-arrow {
+  font-size: 10px;
+  color: var(--text-muted);
+  transition: transform 0.2s;
+}
+
+.asset-selector-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 320px;
+  max-height: 420px;
+  overflow-y: auto;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+  z-index: 100;
+  padding: 8px 0;
+}
+.asset-selector-dropdown.open {
+  display: block;
+}
+
+.asset-group {
+  padding: 0 8px;
+  margin-bottom: 4px;
+}
+
+.asset-group-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-muted);
+  padding: 10px 10px 4px;
+  border-top: 1px solid var(--border);
+}
+.asset-group:first-child .asset-group-label {
+  border-top: none;
+}
+
+.asset-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.15s;
+  text-align: left;
+  font-family: var(--font);
+}
+.asset-item:hover {
+  background: var(--bg-card-hover);
+}
+.asset-item.selected {
+  background: var(--accent-dim);
+  border: 1px solid var(--accent);
+}
+.asset-item.no-data {
+  opacity: 0.5;
+}
+
+.asset-item-symbol {
+  font-size: 12px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  min-width: 70px;
+}
+
+.asset-item-name {
+  font-size: 11px;
+  color: var(--text-secondary);
+  flex: 1;
+}
+
+.asset-item-status {
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   ASSET PRICE & MARKET STATUS
+   ============================================================ */
+.asset-price-block {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 2px;
 }
 
-.btc-label {
-  font-size: 11px;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+.asset-price-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.btc-price {
+.asset-price {
   font-size: 26px;
   font-weight: 700;
   font-family: var(--font-mono);
@@ -208,13 +328,33 @@ html, body {
   letter-spacing: -1px;
 }
 
-.btc-change {
+.asset-change {
   font-size: 12px;
   font-weight: 600;
   font-family: var(--font-mono);
 }
-.btc-change.up   { color: var(--long); }
-.btc-change.down { color: var(--short); }
+.asset-change.up   { color: var(--long); }
+.asset-change.down { color: var(--short); }
+
+.market-status {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  line-height: 1.4;
+}
+.market-status.open {
+  color: var(--long);
+  background: var(--long-dim);
+  border: 1px solid var(--long-border);
+}
+.market-status.closed {
+  color: var(--short);
+  background: var(--short-dim);
+  border: 1px solid var(--short-border);
+}
 
 /* ============================================================
    SIGNAL CARD
@@ -1161,10 +1301,12 @@ html, body {
   .signal-top { flex-direction: column; }
   .signal-strength-block { align-items: flex-start; }
   .params-grid { grid-template-columns: 1fr 1fr; }
-  .btc-price { font-size: 20px; }
+  .asset-price { font-size: 20px; }
   .signal-badge { font-size: 22px; padding: 10px 24px; }
   .history-row-top { flex-direction: column; align-items: flex-start; gap: 6px; }
   .history-pnl-wrap { flex-direction: row; }
   .footer-meta { flex-direction: column; gap: 4px; }
   .tab-nav-btn { padding: 12px 14px; font-size: 12px; }
+  .asset-selector-dropdown { width: 280px; right: -40px; }
+  .header-right { width: 100%; }
 }
