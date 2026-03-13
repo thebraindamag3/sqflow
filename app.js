@@ -1,6 +1,6 @@
 // ============================================================
 // myCFO — Jaime Merino Strategy Signal Engine
-// Multi-Asset · Bitfinex / Binance
+// Multi-Asset · Bitfinex / Binance / TradingView UDF
 // ============================================================
 
 const APP_VERSION = 'v1.4.0';
@@ -31,32 +31,32 @@ const STRATEGY = {
 
 // ── Asset registry ─────────────────────────────────────────
 const ASSETS = {
-  // Futures — Indices
-  'ES1!':  { name: 'S&P 500 E-mini',     category: 'Futures — Indices',      market: 'cme',   bitfinex: null, binance: null },
-  'NQ1!':  { name: 'Nasdaq 100 E-mini',   category: 'Futures — Indices',      market: 'cme',   bitfinex: null, binance: null },
-  'YM1!':  { name: 'Dow Jones E-mini',    category: 'Futures — Indices',      market: 'cme',   bitfinex: null, binance: null },
-  'RTY1!': { name: 'Russell 2000 E-mini', category: 'Futures — Indices',      market: 'cme',   bitfinex: null, binance: null },
-  'DAX1!': { name: 'DAX Futures',         category: 'Futures — Indices',      market: 'eurex', bitfinex: null, binance: null },
-  'NKD1!': { name: 'Nikkei 225 Futures',  category: 'Futures — Indices',      market: 'cme',   bitfinex: null, binance: null },
-  // Futures — Commodities
-  'GC1!':  { name: 'Gold',                category: 'Futures — Commodities',  market: 'cme',   bitfinex: null, binance: null },
-  'SI1!':  { name: 'Silver',              category: 'Futures — Commodities',  market: 'cme',   bitfinex: null, binance: null },
-  'CL1!':  { name: 'Crude Oil WTI',       category: 'Futures — Commodities',  market: 'cme',   bitfinex: null, binance: null },
-  'NG1!':  { name: 'Natural Gas',         category: 'Futures — Commodities',  market: 'cme',   bitfinex: null, binance: null },
-  'HG1!':  { name: 'Copper',              category: 'Futures — Commodities',  market: 'cme',   bitfinex: null, binance: null },
-  // FX Pairs
-  'GBP/USD': { name: 'British Pound',     category: 'FX Pairs', market: 'forex', bitfinex: null, binance: null },
-  'EUR/USD': { name: 'Euro',              category: 'FX Pairs', market: 'forex', bitfinex: null, binance: null },
-  'USD/JPY': { name: 'Japanese Yen',      category: 'FX Pairs', market: 'forex', bitfinex: null, binance: null },
-  'AUD/USD': { name: 'Australian Dollar', category: 'FX Pairs', market: 'forex', bitfinex: null, binance: null },
-  'USD/CHF': { name: 'Swiss Franc',       category: 'FX Pairs', market: 'forex', bitfinex: null, binance: null },
-  // Crypto
-  'BTC/USD': { name: 'Bitcoin',   category: 'Crypto', market: 'crypto', bitfinex: 'tBTCUSD', binance: 'BTCUSDT' },
-  'ETH/USD': { name: 'Ethereum',  category: 'Crypto', market: 'crypto', bitfinex: 'tETHUSD', binance: 'ETHUSDT' },
-  'SOL/USD': { name: 'Solana',    category: 'Crypto', market: 'crypto', bitfinex: 'tSOLUSD', binance: 'SOLUSDT' },
-  'XRP/USD': { name: 'XRP',       category: 'Crypto', market: 'crypto', bitfinex: 'tXRPUSD', binance: 'XRPUSDT' },
-  'ADA/USD': { name: 'Cardano',   category: 'Crypto', market: 'crypto', bitfinex: 'tADAUSD', binance: 'ADAUSDT' },
-  'DOT/USD': { name: 'Polkadot',  category: 'Crypto', market: 'crypto', bitfinex: 'tDOTUSD', binance: 'DOTUSDT' },
+  // Futures — Indices (TradingView UDF for data)
+  'ES1!':  { name: 'S&P 500 E-mini',     category: 'Futures — Indices',      market: 'cme',   bitfinex: null, binance: null, tradingview: 'CME_MINI:ES1!' },
+  'NQ1!':  { name: 'Nasdaq 100 E-mini',   category: 'Futures — Indices',      market: 'cme',   bitfinex: null, binance: null, tradingview: 'CME_MINI:NQ1!' },
+  'YM1!':  { name: 'Dow Jones E-mini',    category: 'Futures — Indices',      market: 'cme',   bitfinex: null, binance: null, tradingview: 'CBOT_MINI:YM1!' },
+  'RTY1!': { name: 'Russell 2000 E-mini', category: 'Futures — Indices',      market: 'cme',   bitfinex: null, binance: null, tradingview: 'CME_MINI:RTY1!' },
+  'DAX1!': { name: 'DAX Futures',         category: 'Futures — Indices',      market: 'eurex', bitfinex: null, binance: null, tradingview: 'EUREX:FDAX1!' },
+  'NKD1!': { name: 'Nikkei 225 Futures',  category: 'Futures — Indices',      market: 'cme',   bitfinex: null, binance: null, tradingview: 'CME:NKD1!' },
+  // Futures — Commodities (TradingView UDF for data)
+  'GC1!':  { name: 'Gold',                category: 'Futures — Commodities',  market: 'cme',   bitfinex: null, binance: null, tradingview: 'COMEX:GC1!' },
+  'SI1!':  { name: 'Silver',              category: 'Futures — Commodities',  market: 'cme',   bitfinex: null, binance: null, tradingview: 'COMEX:SI1!' },
+  'CL1!':  { name: 'Crude Oil WTI',       category: 'Futures — Commodities',  market: 'cme',   bitfinex: null, binance: null, tradingview: 'NYMEX:CL1!' },
+  'NG1!':  { name: 'Natural Gas',         category: 'Futures — Commodities',  market: 'cme',   bitfinex: null, binance: null, tradingview: 'NYMEX:NG1!' },
+  'HG1!':  { name: 'Copper',              category: 'Futures — Commodities',  market: 'cme',   bitfinex: null, binance: null, tradingview: 'COMEX:HG1!' },
+  // FX Pairs (TradingView UDF for data)
+  'GBP/USD': { name: 'British Pound',     category: 'FX Pairs', market: 'forex', bitfinex: null, binance: null, tradingview: 'FX:GBPUSD' },
+  'EUR/USD': { name: 'Euro',              category: 'FX Pairs', market: 'forex', bitfinex: null, binance: null, tradingview: 'FX:EURUSD' },
+  'USD/JPY': { name: 'Japanese Yen',      category: 'FX Pairs', market: 'forex', bitfinex: null, binance: null, tradingview: 'FX:USDJPY' },
+  'AUD/USD': { name: 'Australian Dollar', category: 'FX Pairs', market: 'forex', bitfinex: null, binance: null, tradingview: 'FX:AUDUSD' },
+  'USD/CHF': { name: 'Swiss Franc',       category: 'FX Pairs', market: 'forex', bitfinex: null, binance: null, tradingview: 'FX:USDCHF' },
+  // Crypto (Bitfinex + Binance)
+  'BTC/USD': { name: 'Bitcoin',   category: 'Crypto', market: 'crypto', bitfinex: 'tBTCUSD', binance: 'BTCUSDT', tradingview: null },
+  'ETH/USD': { name: 'Ethereum',  category: 'Crypto', market: 'crypto', bitfinex: 'tETHUSD', binance: 'ETHUSDT', tradingview: null },
+  'SOL/USD': { name: 'Solana',    category: 'Crypto', market: 'crypto', bitfinex: 'tSOLUSD', binance: 'SOLUSDT', tradingview: null },
+  'XRP/USD': { name: 'XRP',       category: 'Crypto', market: 'crypto', bitfinex: 'tXRPUSD', binance: 'XRPUSDT', tradingview: null },
+  'ADA/USD': { name: 'Cardano',   category: 'Crypto', market: 'crypto', bitfinex: 'tADAUSD', binance: 'ADAUSDT', tradingview: null },
+  'DOT/USD': { name: 'Polkadot',  category: 'Crypto', market: 'crypto', bitfinex: 'tDOTUSD', binance: 'DOTUSDT', tradingview: null },
 };
 
 // ── Market hours ───────────────────────────────────────────
@@ -130,15 +130,29 @@ function getApiUrls(tf, assetKey) {
   const bfxTf = { '1h': '1h', '4h': '4h', '1d': '1D', '1w': '7D' }[tf] || '4h';
   const bnbTf = { '1h': '1h', '4h': '4h', '1d': '1d', '1w': '1w' }[tf] || '4h';
 
+  // Crypto assets: Bitfinex primary, Binance fallback
   if (asset && asset.bitfinex && asset.binance) {
     return {
+      provider: 'crypto',
       bitfinex: `https://api-pub.bitfinex.com/v2/candles/trade:${bfxTf}:${asset.bitfinex}/hist?limit=${STRATEGY.CANDLE_LIMIT}&sort=1`,
       binance:  `https://api.binance.com/api/v3/klines?symbol=${asset.binance}&interval=${bnbTf}&limit=${STRATEGY.CANDLE_LIMIT}`,
     };
   }
 
-  // Non-crypto assets: no free CORS-friendly candle API available client-side.
-  // Return null — fetchCandles will surface a clear message.
+  // Non-crypto assets (Futures, FX): AllOrigins-proxied TradingView UDF
+  if (asset && asset.tradingview) {
+    const tvTf = { '1h': '60', '4h': '240', '1d': 'D', '1w': 'W' }[tf] || '240';
+    const now = Math.floor(Date.now() / 1000);
+    const secondsPerCandle = { '1h': 3600, '4h': 14400, '1d': 86400, '1w': 604800 }[tf] || 14400;
+    const from = now - secondsPerCandle * STRATEGY.CANDLE_LIMIT;
+    const tvUrl = `https://tvc4.investing.com/57bf5541e6f1767f88541b7b68415f38/0/0/0/0/history?symbol=${encodeURIComponent(asset.tradingview)}&resolution=${tvTf}&from=${from}&to=${now}`;
+    return {
+      provider: 'tradingview',
+      url: tvUrl,
+      corsProxy: `https://api.allorigins.win/raw?url=${encodeURIComponent(tvUrl)}`,
+    };
+  }
+
   return null;
 }
 
@@ -1165,7 +1179,7 @@ function renderTradeHistory() {
 }
 
 // ============================================================
-// FETCH CANDLES — Bitfinex with Binance fallback
+// FETCH CANDLES — Bitfinex/Binance for Crypto, TradingView UDF for Futures/FX
 // ============================================================
 
 async function fetchCandles(tf, assetKey) {
@@ -1173,9 +1187,15 @@ async function fetchCandles(tf, assetKey) {
   const urls = getApiUrls(tf || state.currentTimeframe, key);
 
   if (!urls) {
-    throw new Error(`No data provider configured for ${key}. Futures and FX require a server-side data proxy.`);
+    throw new Error(`No data provider configured for ${key}.`);
   }
 
+  // TradingView UDF provider (Futures, FX, Stocks)
+  if (urls.provider === 'tradingview') {
+    return await fetchTradingViewCandles(urls, key);
+  }
+
+  // Crypto provider: Bitfinex primary, Binance fallback
   try {
     const res = await fetch(urls.bitfinex);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -1207,6 +1227,41 @@ async function fetchCandles(tf, assetKey) {
     close:  parseFloat(c[4]),
     volume: parseFloat(c[5]),
   }));
+}
+
+async function fetchTradingViewCandles(urls, key) {
+  let res;
+  try {
+    res = await fetch(urls.url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  } catch (directErr) {
+    console.warn('TradingView direct fetch failed, trying CORS proxy:', directErr.message);
+    res = await fetch(urls.corsProxy);
+    if (!res.ok) throw new Error(`TradingView proxy HTTP ${res.status}`);
+  }
+  const data = await res.json();
+
+  if (data.s !== 'ok' || !data.t || data.t.length === 0) {
+    throw new Error(`No TradingView data for ${key} (status: ${data.s || 'unknown'})`);
+  }
+
+  if (data.t.length < 50) {
+    throw new Error(`Insufficient TradingView data for ${key} (${data.t.length} candles)`);
+  }
+
+  // TradingView UDF format: { t:[timestamps], o:[opens], h:[highs], l:[lows], c:[closes], v:[volumes] }
+  const candles = [];
+  for (let i = 0; i < data.t.length; i++) {
+    candles.push({
+      time:   data.t[i] * 1000,  // convert seconds → milliseconds to match Bitfinex/Binance format
+      open:   data.o[i],
+      high:   data.h[i],
+      low:    data.l[i],
+      close:  data.c[i],
+      volume: data.v ? data.v[i] : 0,
+    });
+  }
+  return candles;
 }
 
 // ============================================================
@@ -1589,7 +1644,7 @@ function buildAssetSelector() {
     assets.forEach(a => {
       const item = document.createElement('button');
       item.className = 'asset-item' + (a.key === state.currentAsset ? ' selected' : '');
-      if (!a.bitfinex && !a.binance) item.classList.add('no-data');
+      if (!a.bitfinex && !a.binance && !a.tradingview) item.classList.add('no-data');
 
       const open = isMarketOpen(a.key);
       const dot  = a.market === 'crypto' ? '🟢' : (open ? '🟢' : '🔴');
