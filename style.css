@@ -1108,8 +1108,33 @@ html, body {
   letter-spacing: 0.5px;
 }
 
+.footer-hash {
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
 .footer-sep {
   color: var(--text-muted);
+}
+
+/* ============================================================
+   MULTI-TRADE MONITOR LIST
+   ============================================================ */
+#trades-monitor-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.monitor-tf-tag {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 7px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.3px;
 }
 
 /* ============================================================

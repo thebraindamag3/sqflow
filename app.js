@@ -3,12 +3,17 @@
 // BTC/USD · Bitfinex
 // ============================================================
 
-const APP_VERSION = 'v1.2.0';
+const APP_VERSION = 'v1.3.0';
+
+// Increment SCHEMA_VERSION whenever the stored trade schema changes.
+// On mismatch, open trades are auto-closed gracefully before migration.
+const SCHEMA_VERSION = '2';
 
 // ── Storage keys ─────────────────────────────────────────────
 const STORAGE_KEYS = {
-  ACTIVE_TRADE: 'myCFO_activeTrade',
-  HISTORY:      'myCFO_tradeHistory',
+  ACTIVE_TRADES: 'myCFO_activeTrades',  // v2: array of trades
+  HISTORY:       'myCFO_tradeHistory',
+  SCHEMA:        'myCFO_schemaVersion',
 };
 
 // ── Strategy constants (Jaime Merino) ────────────────────────
@@ -50,9 +55,9 @@ const state = {
   countdownInterval:null,
   candleCloseTime:  null,
   lastResult:       null,
-  activeTrade:      null,   // { direction, entryPrice, entryTime, leverage, tradeSize, stopLoss, timeframe }
-  monitorInterval:  null,   // 30s interval when trade is open
-  lastCandles:      null,   // cache last fetched candles
+  activeTrades:     [],   // array of open trade objects
+  monitorInterval:  null, // single 30s interval for all open trades
+  lastCandles:      null, // cache last fetched candles for current TF
 };
 
 // ============================================================
@@ -294,15 +299,13 @@ function analyzeSignal(candles, capital) {
   const prev    = closes[closes.length - 2];
 
   // ── INDICATORS ──────────────────────────────────────────────
-  // Core EMAs per Jaime Merino: EMA10 (fast) + EMA55 (slow bias)
-  // EMA200 kept as macro context only
   const ema10arr  = calcEMA(closes, 10);
   const ema55arr  = calcEMA(closes, 55);
   const ema200arr = calcEMA(closes, 200);
   const rsiArr    = calcRSI(closes, 14);
   const adxArr    = calcADX(candles, 14);
   const bbArr     = calcBB(closes, 20, 2);
-  const sqzArr    = calcSqueeze(candles, 20);   // BB(20,2) inside KC(20,1.5)
+  const sqzArr    = calcSqueeze(candles, 20);
   const vp        = calcVolumeProfile(candles.slice(-100));
 
   // Latest values
@@ -323,14 +326,11 @@ function analyzeSignal(candles, capital) {
   const adxPrev  = adxValid[adxValid.length - 2] ?? null;
 
   // ── TREND DIRECTION from EMA10 vs EMA55 ─────────────────────
-  // Rule: EMA10 > EMA55 = bullish bias. Price must be above EMA55 for long.
   const emaBullish = ema10 > ema55;
   const emaBearish = ema10 < ema55;
   const direction  = emaBullish ? 'long' : 'short';
 
   // ── CONDITION 1: EMA Bias + Price position ──────────────────
-  // Long:  EMA10 > EMA55  AND  price above EMA55
-  // Short: EMA10 < EMA55  AND  price below EMA55
   const priceAboveEMA55 = current > ema55;
   const priceBelowEMA55 = current < ema55;
   const c1met = direction === 'long'
@@ -343,7 +343,6 @@ function analyzeSignal(candles, capital) {
   };
 
   // ── CONDITION 2: ADX > 23 and rising slope ──────────────────
-  // "Slope is king" — must be rising, not just above threshold
   const adxRising = adx !== null && adxPrev !== null && adx > adxPrev;
   const adxStrong = adx !== null && adx > STRATEGY.ADX_THRESHOLD;
   const adxFlat   = adx !== null && Math.abs(adx - (adxPrev ?? adx)) < 0.3;
@@ -356,8 +355,6 @@ function analyzeSignal(candles, capital) {
   };
 
   // ── CONDITION 3: Squeeze fired + momentum in direction ───────
-  // Highest conviction: squeeze JUST fired (was coiling, now exploding)
-  // Also valid: recently fired within 3 bars AND momentum still expanding
   const sqzJustFired   = sqzP && sqzP.sqzOn && !sqz.sqzOn;
   const sqzRecentlyFired = sqzRecent.some((s, i, arr) =>
     i > 0 && arr[i - 1].sqzOn && !s.sqzOn
@@ -387,7 +384,6 @@ function analyzeSignal(candles, capital) {
   const rsiOk = rsi !== null
     ? (direction === 'long' ? rsi < 70 : rsi > 30)
     : false;
-  // Extra: RSI at 50 bounce (bullish when >50, bearish when <50)
   const rsiAligned = rsi !== null
     ? (direction === 'long' ? rsi > 45 : rsi < 55)
     : false;
@@ -403,8 +399,6 @@ function analyzeSignal(candles, capital) {
   };
 
   // ── CONDITION 5: Price bouncing from / rejecting at EMA55 ────
-  // The EMA55 is the key dynamic S/R in this strategy.
-  // Also check Volume POC and BB extremes as secondary levels.
   const distEMA10  = Math.abs(current - ema10)  / current;
   const distEMA55  = Math.abs(current - ema55)  / current;
   const distEMA200 = Math.abs(current - ema200) / current;
@@ -445,8 +439,6 @@ function analyzeSignal(candles, capital) {
   else if (c1met && metCount === 5) leverage = 10;
 
   // ── TRADE PARAMETERS ────────────────────────────────────────
-  // SL: 7% (or below EMA55 for precision)
-  // TP: 1:3 R/R (21%) per strategy minimum R:R of 1:2.5 to 1:4
   const tradeSize       = capital * STRATEGY.CAPITAL_PCT;
   const slPct           = STRATEGY.SL_PCT;
   const tpPct           = STRATEGY.TP_PCT;
@@ -506,17 +498,13 @@ function analyzeExitSignals(candles, trade) {
   const sqzP2= sqzArr[sqzArr.length - 3];
 
   // ── SQUEEZE exit signals ───────────────────────────────────
-  // "La montaña se vuelve transparente" = histogram shrinking
   const sqzShrinking1  = sqzP  && Math.abs(sqz.val)  < Math.abs(sqzP.val);
   const sqzShrinking2  = sqzP2 && Math.abs(sqzP.val) < Math.abs(sqzP2.val);
-  const sqzConsecWeak  = sqzShrinking1 && sqzShrinking2;  // 2 bars shrinking = warning
-  // Direction flipped = immediate exit
+  const sqzConsecWeak  = sqzShrinking1 && sqzShrinking2;
   const sqzFlipped     = isLong ? sqz.val < 0 : sqz.val > 0;
-  // Peak: was expanding, now shrinking
   const sqzPeaked      = sqzShrinking1 && sqzP2 && Math.abs(sqzP.val) > Math.abs(sqzP2.val);
 
   // ── ADX exit signals ────────────────────────────────────────
-  // "Slope is king" — falling = exit
   const adxFalling1    = adx !== null && adxPrev !== null && adx < adxPrev;
   const adxFalling2    = adxPrev !== null && adxPrev2 !== null && adxPrev < adxPrev2;
   const adxConsecFall  = adxFalling1 && adxFalling2;
@@ -525,7 +513,7 @@ function analyzeExitSignals(candles, trade) {
 
   // ── EMA exit signals ────────────────────────────────────────
   const brokeEMA10  = isLong ? current < ema10  : current > ema10;
-  const brokeEMA55  = isLong ? current < ema55  : current > ema55;  // major violation
+  const brokeEMA55  = isLong ? current < ema55  : current > ema55;
 
   // ── STOP LOSS HIT ────────────────────────────────────────────
   const hitSL = isLong ? current <= trade.stopLoss : current >= trade.stopLoss;
@@ -544,9 +532,8 @@ function analyzeExitSignals(candles, trade) {
 
   // ── BUILD EXIT STATUS ────────────────────────────────────────
   const tips = [];
-  let status = 'HOLD'; // HOLD | WATCH | CAUTION | EXIT
+  let status = 'HOLD';
 
-  // Critical exits — override everything
   if (hitSL) {
     status = 'EXIT';
     tips.push({ level: 'exit', text: `🔴 STOP LOSS HIT at $${fmt(trade.stopLoss)} — close now to protect capital` });
@@ -560,7 +547,6 @@ function analyzeExitSignals(candles, trade) {
     tips.push({ level: 'exit', text: `🔴 Price broke ${isLong ? 'below' : 'above'} EMA55 — major structure violation, EXIT immediately` });
   }
 
-  // Caution signals
   if (sqzConsecWeak && status !== 'EXIT') {
     status = 'CAUTION';
     tips.push({ level: 'caution', text: `⚠️ Squeeze histogram shrinking for 2+ bars in a row — momentum peak may be in. Scale out 30–50% now, trail the rest` });
@@ -585,14 +571,12 @@ function analyzeExitSignals(candles, trade) {
     tips.push({ level: 'watch', text: `👁 Price ${isLong ? 'below' : 'above'} EMA10 — dynamic support broken, consider tightening trailing stop` });
   }
 
-  // R:R tips
   if (rr2hit && pctMove > 0) {
     tips.push({ level: 'hold', text: `💰 1:3 R/R target reached (+${unrealizedPct.toFixed(1)}%). Consider closing 50–70% of position and trailing the rest with EMA10` });
   } else if (rr1hit && pctMove > 0) {
     tips.push({ level: 'hold', text: `💰 1:2 R/R reached (+${unrealizedPct.toFixed(1)}%). Merino says: scale out 30–50%, move SL to breakeven, let the runner go` });
   }
 
-  // Hold tips when everything is good
   if (status === 'HOLD') {
     if (sqz.sqzOn) {
       tips.push({ level: 'hold', text: `🔵 New squeeze forming — market coiling again. May be a pause before next leg. Hold with current stop` });
@@ -623,7 +607,8 @@ function analyzeExitSignals(candles, trade) {
 function enterTrade() {
   if (!state.lastResult || state.lastResult.signal === 'WAIT') return;
 
-  state.activeTrade = {
+  const trade = {
+    id:         String(Date.now()) + Math.random().toString(36).slice(2, 6),
     direction:  state.lastResult.direction,
     entryPrice: state.lastResult.currentPrice,
     entryTime:  Date.now(),
@@ -632,46 +617,193 @@ function enterTrade() {
     stopLoss:   state.lastResult.stopLoss,
     timeframe:  state.currentTimeframe,
   };
-  saveTrade();
-  startTradeMonitor();
-  showTradeMonitor();
 
-  // Hide the Enter button
-  el('enter-trade-wrap').style.display = 'none';
-}
+  state.activeTrades.push(trade);
+  saveTrades();
+  renderTradeMonitors();
+  ensureMonitorRunning();
 
-function closeTrade(exitPrice, reason) {
-  if (state.activeTrade) {
-    const ep = exitPrice != null
-      ? exitPrice
-      : (state.lastCandles ? state.lastCandles[state.lastCandles.length - 1].close : state.activeTrade.entryPrice);
-    saveTradeToHistory(state.activeTrade, ep, reason || 'manual');
-    renderTradeHistory();
-  }
-  state.activeTrade = null;
-  localStorage.removeItem(STORAGE_KEYS.ACTIVE_TRADE);
-  stopTradeMonitor();
-  tearDownTradeMonitor();
-  // Restore Enter button if signal is still active
-  if (state.lastResult && state.lastResult.signal !== 'WAIT') {
-    showEnterButton(state.lastResult.signal);
+  // Immediate initial analysis using cached candles
+  if (state.lastCandles) {
+    const exit = analyzeExitSignals(state.lastCandles, trade);
+    updateTradeCard(trade.id, exit);
   }
 }
 
-function saveTrade() {
-  localStorage.setItem(STORAGE_KEYS.ACTIVE_TRADE, JSON.stringify(state.activeTrade));
+function closeTrade(tradeId, exitPrice, reason) {
+  const idx = state.activeTrades.findIndex(t => t.id === tradeId);
+  if (idx === -1) return;
+
+  const trade = state.activeTrades[idx];
+  const ep = exitPrice != null
+    ? exitPrice
+    : (state.lastCandles ? state.lastCandles[state.lastCandles.length - 1].close : trade.entryPrice);
+
+  saveTradeToHistory(trade, ep, reason || 'manual');
+  state.activeTrades.splice(idx, 1);
+  saveTrades();
+  renderTradeMonitors();
+  renderTradeHistory();
+
+  if (state.activeTrades.length === 0) stopTradeMonitor();
 }
 
-function loadTrade() {
+function saveTrades() {
+  localStorage.setItem(STORAGE_KEYS.ACTIVE_TRADES, JSON.stringify(state.activeTrades));
+}
+
+function loadTrades() {
+  const storedSchema = localStorage.getItem(STORAGE_KEYS.SCHEMA);
+
+  // ── Schema migration: v1 (single trade) → v2 (array) ───────
+  if (storedSchema !== SCHEMA_VERSION) {
+    const v1Raw = localStorage.getItem('myCFO_activeTrade');
+    if (v1Raw) {
+      try {
+        const v1Trade = JSON.parse(v1Raw);
+        if (v1Trade && v1Trade.entryPrice) {
+          saveTradeToHistory(
+            v1Trade,
+            v1Trade.entryPrice,
+            'auto-closed',
+            `Auto-closed: app updated to ${APP_VERSION} — schema migration`
+          );
+        }
+      } catch (_) {}
+    }
+    localStorage.removeItem('myCFO_activeTrade');
+    localStorage.removeItem(STORAGE_KEYS.ACTIVE_TRADES);
+    localStorage.setItem(STORAGE_KEYS.SCHEMA, SCHEMA_VERSION);
+    state.activeTrades = [];
+    return;
+  }
+
   try {
-    const saved = localStorage.getItem(STORAGE_KEYS.ACTIVE_TRADE);
-    if (saved) state.activeTrade = JSON.parse(saved);
-  } catch (e) { state.activeTrade = null; }
+    const saved  = localStorage.getItem(STORAGE_KEYS.ACTIVE_TRADES);
+    const parsed = saved ? JSON.parse(saved) : [];
+    state.activeTrades = Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    state.activeTrades = [];
+  }
 }
 
 // ============================================================
 // TRADE MONITOR UI
 // ============================================================
+
+function buildSince(entryTime) {
+  const secAgo = Math.floor((Date.now() - entryTime) / 1000);
+  const minAgo = Math.floor(secAgo / 60);
+  const hrsAgo = Math.floor(minAgo / 60);
+  return hrsAgo > 0
+    ? `Entered ${hrsAgo}h ${minAgo % 60}m ago`
+    : `Entered ${minAgo}m ago`;
+}
+
+function buildTradeCardHTML(trade) {
+  const isShort = trade.direction === 'short';
+  return `
+    <div class="monitor-header">
+      <div class="monitor-left">
+        <span class="monitor-badge${isShort ? ' short' : ''}">${isShort ? 'SHORT ACTIVE' : 'LONG ACTIVE'}</span>
+        <span class="monitor-since">${buildSince(trade.entryTime)}</span>
+        <span class="monitor-tf-tag">${trade.timeframe.toUpperCase()} · BTC/USD</span>
+      </div>
+      <button class="close-trade-btn">✕ Close Trade</button>
+    </div>
+    <div class="monitor-pnl-row">
+      <div class="monitor-pnl-block">
+        <div class="monitor-pnl-label">Unrealized P&amp;L</div>
+        <div class="monitor-pnl-value" id="pnl-${trade.id}">—</div>
+        <div class="monitor-pnl-pct" id="pnl-pct-${trade.id}">—</div>
+      </div>
+      <div class="monitor-entry-block">
+        <div class="monitor-entry-row"><span>Entry</span><strong>$${fmt(trade.entryPrice)}</strong></div>
+        <div class="monitor-entry-row"><span>Current</span><strong id="cur-${trade.id}">—</strong></div>
+        <div class="monitor-entry-row"><span>Stop Loss</span><strong>$${fmt(trade.stopLoss)}</strong></div>
+        <div class="monitor-entry-row"><span>Leverage</span><strong>${trade.leverage}×</strong></div>
+      </div>
+    </div>
+    <div class="exit-status-bar" id="exit-bar-${trade.id}">
+      <div class="exit-status-dot"></div>
+      <div class="exit-status-text">Analyzing…</div>
+    </div>
+    <div class="exit-tips-list" id="tips-${trade.id}"></div>
+    <div class="monitor-footer">
+      <span>🔄 Monitoring every 30s · Last check: <strong id="check-${trade.id}">—</strong></span>
+    </div>
+  `;
+}
+
+// Rebuild all trade monitor cards. Called when trades are added or removed.
+function renderTradeMonitors() {
+  const container = el('trades-monitor-list');
+  if (!container) return;
+  container.innerHTML = '';
+  state.activeTrades.forEach(trade => {
+    const card = document.createElement('section');
+    card.className = `trade-monitor monitor-${trade.direction}`;
+    card.id = `trade-card-${trade.id}`;
+    card.innerHTML = buildTradeCardHTML(trade);
+    card.querySelector('.close-trade-btn').addEventListener('click', () => closeTrade(trade.id));
+    container.appendChild(card);
+  });
+}
+
+// Update the live data inside one trade card (no DOM rebuild).
+function updateTradeCard(tradeId, exit) {
+  const card = el(`trade-card-${tradeId}`);
+  if (!card) return;
+
+  const trade = state.activeTrades.find(t => t.id === tradeId);
+  if (!trade) return;
+
+  // Since time
+  const sinceEl = card.querySelector('.monitor-since');
+  if (sinceEl) sinceEl.textContent = buildSince(trade.entryTime);
+
+  // Current price
+  const curEl = el(`cur-${tradeId}`);
+  if (curEl) curEl.textContent = '$' + fmt(exit.current);
+
+  // P&L
+  const pnlEl = el(`pnl-${tradeId}`);
+  const pctEl = el(`pnl-pct-${tradeId}`);
+  if (pnlEl && pctEl) {
+    const isProfit = exit.unrealizedPnL >= 0;
+    pnlEl.textContent = (isProfit ? '+' : '') + fmtUSD(exit.unrealizedPnL);
+    pnlEl.className   = 'monitor-pnl-value ' + (isProfit ? 'profit' : 'loss');
+    pctEl.textContent = (isProfit ? '+' : '') + exit.unrealizedPct.toFixed(2) + '%  (pos. move)';
+    pctEl.className   = 'monitor-pnl-pct ' + (isProfit ? 'profit' : 'loss');
+  }
+
+  // Exit status bar
+  const bar = el(`exit-bar-${tradeId}`);
+  if (bar) {
+    bar.className = `exit-status-bar status-${exit.status.toLowerCase()}`;
+    bar.querySelector('.exit-status-text').textContent = EXIT_STATUS_LABELS[exit.status];
+  }
+
+  // Tips
+  const tipsList = el(`tips-${tradeId}`);
+  if (tipsList) {
+    tipsList.innerHTML = '';
+    exit.tips.forEach(t => {
+      const div = document.createElement('div');
+      div.className = `exit-tip tip-${t.level}`;
+      div.textContent = t.text;
+      tipsList.appendChild(div);
+    });
+  }
+
+  // Last check
+  const checkEl = el(`check-${tradeId}`);
+  if (checkEl) {
+    checkEl.textContent = new Date().toLocaleTimeString([], {
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+    });
+  }
+}
 
 function showEnterButton(signal) {
   const wrap = el('enter-trade-wrap');
@@ -683,106 +815,60 @@ function showEnterButton(signal) {
   btn.className = 'enter-trade-btn' + (signal === 'SHORT' ? ' short-btn' : '');
 }
 
-function showTradeMonitor() {
-  if (!state.activeTrade) return;
-  // Disable timeframe switching while trade is open
-  document.querySelectorAll('.tf-btn').forEach(b => { b.disabled = true; });
-  const monitor = el('trade-monitor');
-  monitor.style.display = 'block';
-  monitor.className = `trade-monitor monitor-${state.activeTrade.direction}`;
-  el('monitor-badge').textContent = state.activeTrade.direction === 'long' ? 'LONG ACTIVE' : 'SHORT ACTIVE';
-  el('monitor-badge').className   = `monitor-badge${state.activeTrade.direction === 'short' ? ' short' : ''}`;
-  el('monitor-entry-price').textContent = '$' + fmt(state.activeTrade.entryPrice);
-  el('monitor-sl').textContent          = '$' + fmt(state.activeTrade.stopLoss);
-  el('monitor-lev').textContent         = state.activeTrade.leverage + '×';
-}
-
-function updateTradeMonitorUI(exit) {
-  if (!state.activeTrade) return;
-
-  // Since
-  const secAgo = Math.floor((Date.now() - state.activeTrade.entryTime) / 1000);
-  const minAgo = Math.floor(secAgo / 60);
-  const hrsAgo = Math.floor(minAgo / 60);
-  el('monitor-since').textContent = hrsAgo > 0
-    ? `Entered ${hrsAgo}h ${minAgo % 60}m ago`
-    : `Entered ${minAgo}m ago`;
-
-  // Current price
-  el('monitor-current-price').textContent = '$' + fmt(exit.current);
-
-  // P&L
-  const pnlEl  = el('monitor-pnl');
-  const pctEl  = el('monitor-pnl-pct');
-  const isProfit = exit.unrealizedPnL >= 0;
-  pnlEl.textContent = (isProfit ? '+' : '') + fmtUSD(exit.unrealizedPnL);
-  pnlEl.className   = 'monitor-pnl-value ' + (isProfit ? 'profit' : 'loss');
-  pctEl.textContent = (isProfit ? '+' : '') + exit.unrealizedPct.toFixed(2) + '%  (pos. move)';
-  pctEl.className   = 'monitor-pnl-pct ' + (isProfit ? 'profit' : 'loss');
-
-  // Exit status bar
-  const bar = el('exit-status-bar');
-  bar.className = `exit-status-bar status-${exit.status.toLowerCase()}`;
-  el('exit-status-text').textContent = EXIT_STATUS_LABELS[exit.status];
-
-  // Tips
-  const tipsList = el('exit-tips-list');
-  tipsList.innerHTML = '';
-  exit.tips.forEach(t => {
-    const div = document.createElement('div');
-    div.className = `exit-tip tip-${t.level}`;
-    div.textContent = t.text;
-    tipsList.appendChild(div);
-  });
-
-  // Last check time
-  el('monitor-last-check').textContent =
-    new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-}
-
 // ============================================================
 // MONITOR INTERVAL (30 seconds)
 // ============================================================
 
-function startTradeMonitor() {
-  stopTradeMonitor();
+// Starts the 30s polling loop if not already running.
+function ensureMonitorRunning() {
+  if (state.monitorInterval || state.activeTrades.length === 0) return;
   state.monitorInterval = setInterval(async () => {
-    if (!state.activeTrade) { stopTradeMonitor(); return; }
-    try {
-      const candles = await fetchCandles(state.activeTrade.timeframe);
-      state.lastCandles   = candles;
-      const exit    = analyzeExitSignals(candles, state.activeTrade);
-      updateTradeMonitorUI(exit);
-      autoCloseIfNeeded(exit);
-    } catch (e) {
-      console.warn('Monitor refresh error:', e);
+    if (state.activeTrades.length === 0) { stopTradeMonitor(); return; }
+
+    // Group trades by timeframe to minimise API calls
+    const byTf = {};
+    state.activeTrades.forEach(t => {
+      (byTf[t.timeframe] = byTf[t.timeframe] || []).push(t);
+    });
+
+    for (const [tf, trades] of Object.entries(byTf)) {
+      try {
+        const candles = await fetchCandles(tf);
+        if (tf === state.currentTimeframe) state.lastCandles = candles;
+        trades.forEach(trade => {
+          const exit = analyzeExitSignals(candles, trade);
+          updateTradeCard(trade.id, exit);
+          autoCloseIfNeeded(trade, exit);
+        });
+      } catch (e) {
+        console.warn('Monitor error for TF', tf, ':', e);
+      }
     }
   }, 30000);
 }
 
-function autoCloseIfNeeded(exit) {
-  if (!state.activeTrade) return;
-  const isLong = state.activeTrade.direction === 'long';
+function autoCloseIfNeeded(trade, exit) {
+  const isLong = trade.direction === 'long';
 
-  // Check SL hit
   if (exit.hitSL) {
     showAutoCloseAlert(
+      trade.id,
       '🔴 STOP LOSS HIT',
-      `Price reached your stop loss at $${fmt(state.activeTrade.stopLoss)}.\nTrade closed automatically. Loss: ${fmtUSD(exit.unrealizedPnL)}`,
+      `Price reached stop loss at $${fmt(trade.stopLoss)}.\nTrade closed automatically. Loss: ${fmtUSD(exit.unrealizedPnL)}`,
       'loss',
       exit.current
     );
     return;
   }
 
-  // Check TP hit — price moved 21% (1:3 R/R) in favor
   const tpPrice = isLong
-    ? state.activeTrade.entryPrice * (1 + STRATEGY.TP_PCT)
-    : state.activeTrade.entryPrice * (1 - STRATEGY.TP_PCT);
+    ? trade.entryPrice * (1 + STRATEGY.TP_PCT)
+    : trade.entryPrice * (1 - STRATEGY.TP_PCT);
   const tpHit = isLong ? exit.current >= tpPrice : exit.current <= tpPrice;
 
   if (tpHit) {
     showAutoCloseAlert(
+      trade.id,
       '🎯 TAKE PROFIT HIT',
       `Price reached 1:3 R/R target at $${fmt(tpPrice)}.\nTrade closed automatically. Profit: ${fmtUSD(exit.unrealizedPnL)}`,
       'profit',
@@ -791,34 +877,29 @@ function autoCloseIfNeeded(exit) {
   }
 }
 
-function showAutoCloseAlert(title, message, type, exitPrice) {
-  // Update monitor UI to show the final result before closing
-  const bar = el('exit-status-bar');
-  bar.className = `exit-status-bar status-${type === 'loss' ? 'exit' : 'hold'}`;
-  el('exit-status-text').textContent = `${title} — Trade closed automatically`;
+function showAutoCloseAlert(tradeId, title, message, type, exitPrice) {
+  const bar = el(`exit-bar-${tradeId}`);
+  if (bar) {
+    bar.className = `exit-status-bar status-${type === 'loss' ? 'exit' : 'hold'}`;
+    bar.querySelector('.exit-status-text').textContent = `${title} — Trade closed automatically`;
+  }
 
-  const tipsList = el('exit-tips-list');
-  tipsList.innerHTML = '';
-  const div = document.createElement('div');
-  div.className = `exit-tip tip-${type === 'loss' ? 'exit' : 'hold'}`;
-  div.textContent = message.replace('\n', ' ');
-  tipsList.appendChild(div);
+  const tipsList = el(`tips-${tradeId}`);
+  if (tipsList) {
+    tipsList.innerHTML = '';
+    const div = document.createElement('div');
+    div.className = `exit-tip tip-${type === 'loss' ? 'exit' : 'hold'}`;
+    div.textContent = message.replace('\n', ' ');
+    tipsList.appendChild(div);
+  }
 
-  // Close after 5 seconds so user can read the result
-  const reason = type === 'loss' ? 'sl' : 'tp';
   setTimeout(() => {
-    closeTrade(exitPrice, reason);
+    closeTrade(tradeId, exitPrice, type === 'loss' ? 'sl' : 'tp');
   }, 5000);
 }
 
 function stopTradeMonitor() {
   if (state.monitorInterval) { clearInterval(state.monitorInterval); state.monitorInterval = null; }
-}
-
-// Hides the trade monitor panel and re-enables timeframe switching.
-function tearDownTradeMonitor() {
-  el('trade-monitor').style.display = 'none';
-  document.querySelectorAll('.tf-btn').forEach(b => { b.disabled = false; });
 }
 
 // ============================================================
@@ -899,7 +980,6 @@ function renderTradeHistory() {
   const badge   = el('history-tab-badge');
   if (!list) return;
 
-  // Update tab badge
   if (badge) {
     badge.textContent    = history.length;
     badge.style.display  = history.length ? '' : 'none';
@@ -913,12 +993,10 @@ function renderTradeHistory() {
     return;
   }
 
-  // Totals summary
   const wins    = history.filter(t => t.pnl >= 0).length;
   const totalPnl= history.reduce((s, t) => s + (t.pnl || 0), 0);
   const winRate = Math.round((wins / history.length) * 100);
 
-  // Summary bar
   const summaryBar = document.createElement('div');
   summaryBar.className = 'history-summary';
   summaryBar.innerHTML = `
@@ -932,7 +1010,7 @@ function renderTradeHistory() {
 
   history.forEach(t => {
     const isProfit    = t.pnl >= 0;
-    const reasonLabel = { tp: '🎯 TP', sl: '🔴 SL', manual: '✋ Manual' }[t.reason] || t.reason;
+    const reasonLabel = { tp: '🎯 TP', sl: '🔴 SL', manual: '✋ Manual', 'auto-closed': '🔄 Auto-closed' }[t.reason] || t.reason;
     const duration    = formatDuration(t.exitTime - t.entryTime);
 
     const fmtDT = (ts) => new Date(ts).toLocaleString('en-US', {
@@ -980,7 +1058,6 @@ function renderTradeHistory() {
 
 async function fetchCandles(tf) {
   const urls = getApiUrls(tf || state.currentTimeframe);
-  // Try Bitfinex first
   try {
     const res = await fetch(urls.bitfinex);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -999,7 +1076,6 @@ async function fetchCandles(tf) {
     console.warn('Bitfinex failed, trying Binance fallback:', err.message);
   }
 
-  // Fallback: Binance
   const res = await fetch(urls.binance);
   if (!res.ok) throw new Error(`Binance HTTP ${res.status}`);
   const raw = await res.json();
@@ -1134,45 +1210,44 @@ function updateUI(r, capital) {
   el('param-stoploss').textContent   = showTrade ? '$' + fmt(r.stopLoss)         : '—';
   el('param-maxloss').textContent    = showTrade ? fmtUSD(r.maxLoss)             : '—';
 
-  // Take Profit
   const tpPrice = (r.takeProfit && !isNaN(r.takeProfit)) ? r.takeProfit : null;
   el('param-tp').textContent     = (showTrade && tpPrice) ? '$' + fmt(tpPrice) : '—';
   el('param-tp-pct').textContent = (showTrade && tpPrice)
     ? `${(r.tpPct * 100).toFixed(0)}% move from entry (2:1 R/R)`
     : '';
 
-  // Estimated Profit
   const estProfit = (r.estimatedProfit && !isNaN(r.estimatedProfit)) ? r.estimatedProfit : null;
   el('param-profit').textContent        = (showTrade && estProfit) ? fmtUSD(estProfit) : '—';
   el('param-profit-detail').textContent = (showTrade && estProfit)
     ? `$${fmt(r.tradeSize)} × ${r.leverage}x lev × ${(r.tpPct * 100).toFixed(0)}%`
     : '';
 
-  // Conditions
   renderConditions(r.conditions, r.direction);
-  // Indicators
   renderIndicators(r);
 
-  // Enter Trade button — show only when signal active and no open trade
-  if (r.signal !== 'WAIT' && !state.activeTrade) {
+  // Enter Trade button — always visible when signal is active (multiple trades are supported)
+  if (r.signal !== 'WAIT') {
     showEnterButton(r.signal);
   } else {
     el('enter-trade-wrap').style.display = 'none';
   }
 
-  // If trade is open, refresh the monitor too
-  if (state.activeTrade && state.lastCandles) {
-    const exit = analyzeExitSignals(state.lastCandles, state.activeTrade);
-    updateTradeMonitorUI(exit);
+  // Refresh monitors for trades on the current timeframe
+  if (state.activeTrades.length > 0 && state.lastCandles) {
+    state.activeTrades
+      .filter(t => t.timeframe === state.currentTimeframe)
+      .forEach(trade => {
+        const exit = analyzeExitSignals(state.lastCandles, trade);
+        updateTradeCard(trade.id, exit);
+      });
   }
 
-  // Time
   el('last-update').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     + (USER_TZ_ABBR ? '\u00a0' + USER_TZ_ABBR : '');
 }
 
 // ============================================================
-// REFRESH TIMING — align with 4H candle closes
+// REFRESH TIMING — align with candle closes
 // ============================================================
 
 function msUntilNextCandle() {
@@ -1191,13 +1266,12 @@ function msUntilNextCandle() {
     next.setUTCDate(next.getUTCDate() + 1);
     next.setUTCHours(0, 0, 15, 0);
   } else { // 1w
-    const day = now.getUTCDay(); // 0=Sun … 6=Sat
+    const day = now.getUTCDay();
     const daysUntilMonday = day === 1 ? 7 : (8 - day) % 7 || 7;
     next.setUTCDate(next.getUTCDate() + daysUntilMonday);
     next.setUTCHours(0, 0, 15, 0);
   }
 
-  // Sanity: must be in the future
   if (next <= now) {
     const periodMs = { '1h': 3600000, '4h': 14400000, '1d': 86400000, '1w': 604800000 };
     const ms = periodMs[state.currentTimeframe] || 14400000;
@@ -1215,7 +1289,7 @@ function fmtCountdown(remainingMs) {
   if (state.currentTimeframe === '1w') return `${days}d ${hrs}h`;
   if (state.currentTimeframe === '1d') return `${hrs}h ${min}m`;
   if (state.currentTimeframe === '4h') return `${Math.floor(totalSec / 3600)}h ${min}m`;
-  return `${Math.floor(totalSec / 60)}m ${sec}s`; // 1h
+  return `${Math.floor(totalSec / 60)}m ${sec}s`;
 }
 
 function startCountdown() {
@@ -1234,7 +1308,6 @@ function startCountdown() {
     }
     const pct = (remaining / totalMs) * 100;
     bar.style.width = pct + '%';
-
     nextEl.textContent = fmtCountdown(remaining);
   }, 1000);
 }
@@ -1250,7 +1323,7 @@ function scheduleNextRefresh() {
 // ============================================================
 
 function switchTimeframe(tf) {
-  if (state.activeTrade) return; // monitor must use trade's original timeframe
+  // Timeframe switching is always allowed — each open trade monitors its own TF independently
   state.currentTimeframe = tf;
   document.querySelectorAll('.tf-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.tf === tf);
@@ -1301,13 +1374,11 @@ async function run() {
   }
 }
 
-// Manual refresh button
 function manualRefresh() {
   clearTimeout(state.refreshTimer);
   run();
 }
 
-// Recalculate capital-dependent trade params without a new fetch.
 function recalcTradeParams(capital) {
   const r             = state.lastResult;
   const tradeSize     = capital * STRATEGY.CAPITAL_PCT;
@@ -1320,7 +1391,6 @@ function onCapitalChange() {
   if (!state.lastResult) return;
   const capital = parseFloat(el('capital-input').value) || 5000;
   const { tradeSize, maxLoss, estProfit } = recalcTradeParams(capital);
-  // Update state so enterTrade() uses the latest capital
   state.lastResult.tradeSize       = tradeSize;
   state.lastResult.maxLoss         = maxLoss;
   state.lastResult.estimatedProfit = estProfit;
@@ -1349,10 +1419,14 @@ function initFooter() {
       const dateStr = d.toLocaleDateString('en-CA');
       const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       const tz      = USER_TZ_ABBR ? '\u00a0' + USER_TZ_ABBR : '';
+      const hash    = v.buildHash && v.buildHash !== 'unknown'
+        ? `\u00a0<span class="footer-hash">(${v.buildHash})</span>`
+        : '';
       footerMeta.innerHTML =
         `<span class="footer-version">v${v.version}</span>` +
-        `<span class="footer-sep">·</span>` +
-        `<span>Last deploy: ${dateStr}\u00a0${timeStr}${tz}</span>`;
+        hash +
+        `<span class="footer-sep">\u00a0·\u00a0</span>` +
+        `<span>Last deploy:\u00a0${dateStr}\u00a0${timeStr}${tz}</span>`;
     })
     .catch(() => {
       footerMeta.innerHTML = `<span class="footer-version">${APP_VERSION}</span>`;
@@ -1367,7 +1441,7 @@ function bindEvents() {
     b.addEventListener('click', () => switchTab(b.dataset.tab));
   });
   el('enter-trade-btn').addEventListener('click', enterTrade);
-  el('close-trade-btn').addEventListener('click', () => closeTrade());
+  // Note: close-trade-btn listeners are bound per-card in renderTradeMonitors()
   el('refresh-btn').addEventListener('click', manualRefresh);
   el('export-history-btn').addEventListener('click', exportTradeHistory);
   el('clear-history-btn').addEventListener('click', clearTradeHistory);
@@ -1380,10 +1454,10 @@ function init() {
   document.querySelectorAll('.tf-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.tf === state.currentTimeframe);
   });
-  loadTrade();
-  if (state.activeTrade) {
-    showTradeMonitor();
-    startTradeMonitor();
+  loadTrades();
+  renderTradeMonitors();
+  if (state.activeTrades.length > 0) {
+    ensureMonitorRunning();
   }
   renderTradeHistory();
   run();

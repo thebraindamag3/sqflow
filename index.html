@@ -76,44 +76,8 @@
           </div>
         </section>
 
-        <!-- ACTIVE TRADE MONITOR — shown only when a trade is open -->
-        <section class="trade-monitor" id="trade-monitor" style="display:none">
-          <div class="monitor-header">
-            <div class="monitor-left">
-              <span class="monitor-badge" id="monitor-badge">LONG ACTIVE</span>
-              <span class="monitor-since" id="monitor-since"></span>
-            </div>
-            <button class="close-trade-btn" id="close-trade-btn">✕ Close Trade</button>
-          </div>
-
-          <!-- P&L -->
-          <div class="monitor-pnl-row">
-            <div class="monitor-pnl-block">
-              <div class="monitor-pnl-label">Unrealized P&amp;L</div>
-              <div class="monitor-pnl-value" id="monitor-pnl">—</div>
-              <div class="monitor-pnl-pct" id="monitor-pnl-pct">—</div>
-            </div>
-            <div class="monitor-entry-block">
-              <div class="monitor-entry-row"><span>Entry</span><strong id="monitor-entry-price">—</strong></div>
-              <div class="monitor-entry-row"><span>Current</span><strong id="monitor-current-price">—</strong></div>
-              <div class="monitor-entry-row"><span>Stop Loss</span><strong id="monitor-sl">—</strong></div>
-              <div class="monitor-entry-row"><span>Leverage</span><strong id="monitor-lev">—</strong></div>
-            </div>
-          </div>
-
-          <!-- Exit Signal Status -->
-          <div class="exit-status-bar" id="exit-status-bar">
-            <div class="exit-status-dot" id="exit-status-dot"></div>
-            <div class="exit-status-text" id="exit-status-text">Analyzing…</div>
-          </div>
-
-          <!-- Exit Tips -->
-          <div class="exit-tips-list" id="exit-tips-list"></div>
-
-          <div class="monitor-footer">
-            <span>🔄 Monitoring every 30s · Last check: <strong id="monitor-last-check">—</strong></span>
-          </div>
-        </section>
+        <!-- ACTIVE TRADE MONITORS — one card per open trade, rendered dynamically -->
+        <div id="trades-monitor-list"></div>
 
         <!-- CAPITAL INPUT + TRADE PARAMS -->
         <section class="trade-section">
@@ -268,6 +232,6 @@
 
   </div>
 
-  <script src="app.js?v=10"></script>
+  <script src="app.js?v=11"></script>
 </body>
 </html>
