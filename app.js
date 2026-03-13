@@ -1,6 +1,6 @@
 // ============================================================
 // myCFO — Jaime Merino Strategy Signal Engine
-// Multi-Asset · Bitfinex / Binance / TradingView UDF
+// Multi-Asset · Bitfinex / Binance / Yahoo Finance Proxy
 // ============================================================
 
 const APP_VERSION = 'v1.4.0';
@@ -31,25 +31,25 @@ const STRATEGY = {
 
 // ── Asset registry ─────────────────────────────────────────
 const ASSETS = {
-  // Futures — Indices (TradingView UDF for data)
-  'ES1!':  { name: 'S&P 500 E-mini',     category: 'Futures — Indices',      market: 'cme',   bitfinex: null, binance: null, tradingview: 'CME_MINI:ES1!' },
-  'NQ1!':  { name: 'Nasdaq 100 E-mini',   category: 'Futures — Indices',      market: 'cme',   bitfinex: null, binance: null, tradingview: 'CME_MINI:NQ1!' },
-  'YM1!':  { name: 'Dow Jones E-mini',    category: 'Futures — Indices',      market: 'cme',   bitfinex: null, binance: null, tradingview: 'CBOT_MINI:YM1!' },
-  'RTY1!': { name: 'Russell 2000 E-mini', category: 'Futures — Indices',      market: 'cme',   bitfinex: null, binance: null, tradingview: 'CME_MINI:RTY1!' },
-  'DAX1!': { name: 'DAX Futures',         category: 'Futures — Indices',      market: 'eurex', bitfinex: null, binance: null, tradingview: 'EUREX:FDAX1!' },
-  'NKD1!': { name: 'Nikkei 225 Futures',  category: 'Futures — Indices',      market: 'cme',   bitfinex: null, binance: null, tradingview: 'CME:NKD1!' },
-  // Futures — Commodities (TradingView UDF for data)
-  'GC1!':  { name: 'Gold',                category: 'Futures — Commodities',  market: 'cme',   bitfinex: null, binance: null, tradingview: 'COMEX:GC1!' },
-  'SI1!':  { name: 'Silver',              category: 'Futures — Commodities',  market: 'cme',   bitfinex: null, binance: null, tradingview: 'COMEX:SI1!' },
-  'CL1!':  { name: 'Crude Oil WTI',       category: 'Futures — Commodities',  market: 'cme',   bitfinex: null, binance: null, tradingview: 'NYMEX:CL1!' },
-  'NG1!':  { name: 'Natural Gas',         category: 'Futures — Commodities',  market: 'cme',   bitfinex: null, binance: null, tradingview: 'NYMEX:NG1!' },
-  'HG1!':  { name: 'Copper',              category: 'Futures — Commodities',  market: 'cme',   bitfinex: null, binance: null, tradingview: 'COMEX:HG1!' },
-  // FX Pairs (TradingView UDF for data)
-  'GBP/USD': { name: 'British Pound',     category: 'FX Pairs', market: 'forex', bitfinex: null, binance: null, tradingview: 'FX:GBPUSD' },
-  'EUR/USD': { name: 'Euro',              category: 'FX Pairs', market: 'forex', bitfinex: null, binance: null, tradingview: 'FX:EURUSD' },
-  'USD/JPY': { name: 'Japanese Yen',      category: 'FX Pairs', market: 'forex', bitfinex: null, binance: null, tradingview: 'FX:USDJPY' },
-  'AUD/USD': { name: 'Australian Dollar', category: 'FX Pairs', market: 'forex', bitfinex: null, binance: null, tradingview: 'FX:AUDUSD' },
-  'USD/CHF': { name: 'Swiss Franc',       category: 'FX Pairs', market: 'forex', bitfinex: null, binance: null, tradingview: 'FX:USDCHF' },
+  // Futures — Indices (Yahoo Finance proxy for data)
+  'ES1!':  { name: 'S&P 500 E-mini',     category: 'Futures — Indices',      market: 'cme',   bitfinex: null, binance: null, tradingview: 'CME_MINI:ES1!',  yahoo: 'ES=F' },
+  'NQ1!':  { name: 'Nasdaq 100 E-mini',   category: 'Futures — Indices',      market: 'cme',   bitfinex: null, binance: null, tradingview: 'CME_MINI:NQ1!',  yahoo: 'NQ=F' },
+  'YM1!':  { name: 'Dow Jones E-mini',    category: 'Futures — Indices',      market: 'cme',   bitfinex: null, binance: null, tradingview: 'CBOT_MINI:YM1!', yahoo: 'YM=F' },
+  'RTY1!': { name: 'Russell 2000 E-mini', category: 'Futures — Indices',      market: 'cme',   bitfinex: null, binance: null, tradingview: 'CME_MINI:RTY1!', yahoo: 'RTY=F' },
+  'DAX1!': { name: 'DAX Futures',         category: 'Futures — Indices',      market: 'eurex', bitfinex: null, binance: null, tradingview: 'EUREX:FDAX1!',   yahoo: '^GDAXI' },
+  'NKD1!': { name: 'Nikkei 225 Futures',  category: 'Futures — Indices',      market: 'cme',   bitfinex: null, binance: null, tradingview: 'CME:NKD1!',      yahoo: 'NKD=F' },
+  // Futures — Commodities (Yahoo Finance proxy for data)
+  'GC1!':  { name: 'Gold',                category: 'Futures — Commodities',  market: 'cme',   bitfinex: null, binance: null, tradingview: 'COMEX:GC1!',     yahoo: 'GC=F' },
+  'SI1!':  { name: 'Silver',              category: 'Futures — Commodities',  market: 'cme',   bitfinex: null, binance: null, tradingview: 'COMEX:SI1!',     yahoo: 'SI=F' },
+  'CL1!':  { name: 'Crude Oil WTI',       category: 'Futures — Commodities',  market: 'cme',   bitfinex: null, binance: null, tradingview: 'NYMEX:CL1!',     yahoo: 'CL=F' },
+  'NG1!':  { name: 'Natural Gas',         category: 'Futures — Commodities',  market: 'cme',   bitfinex: null, binance: null, tradingview: 'NYMEX:NG1!',     yahoo: 'NG=F' },
+  'HG1!':  { name: 'Copper',              category: 'Futures — Commodities',  market: 'cme',   bitfinex: null, binance: null, tradingview: 'COMEX:HG1!',     yahoo: 'HG=F' },
+  // FX Pairs (Yahoo Finance proxy for data)
+  'GBP/USD': { name: 'British Pound',     category: 'FX Pairs', market: 'forex', bitfinex: null, binance: null, tradingview: 'FX:GBPUSD', yahoo: 'GBPUSD=X' },
+  'EUR/USD': { name: 'Euro',              category: 'FX Pairs', market: 'forex', bitfinex: null, binance: null, tradingview: 'FX:EURUSD', yahoo: 'EURUSD=X' },
+  'USD/JPY': { name: 'Japanese Yen',      category: 'FX Pairs', market: 'forex', bitfinex: null, binance: null, tradingview: 'FX:USDJPY', yahoo: 'JPY=X' },
+  'AUD/USD': { name: 'Australian Dollar', category: 'FX Pairs', market: 'forex', bitfinex: null, binance: null, tradingview: 'FX:AUDUSD', yahoo: 'AUDUSD=X' },
+  'USD/CHF': { name: 'Swiss Franc',       category: 'FX Pairs', market: 'forex', bitfinex: null, binance: null, tradingview: 'FX:USDCHF', yahoo: 'CHF=X' },
   // Crypto (Bitfinex + Binance)
   'BTC/USD': { name: 'Bitcoin',   category: 'Crypto', market: 'crypto', bitfinex: 'tBTCUSD', binance: 'BTCUSDT', tradingview: null },
   'ETH/USD': { name: 'Ethereum',  category: 'Crypto', market: 'crypto', bitfinex: 'tETHUSD', binance: 'ETHUSDT', tradingview: null },
@@ -139,17 +139,13 @@ function getApiUrls(tf, assetKey) {
     };
   }
 
-  // Non-crypto assets (Futures, FX): AllOrigins-proxied TradingView UDF
-  if (asset && asset.tradingview) {
-    const tvTf = { '1h': '60', '4h': '240', '1d': 'D', '1w': 'W' }[tf] || '240';
-    const now = Math.floor(Date.now() / 1000);
-    const secondsPerCandle = { '1h': 3600, '4h': 14400, '1d': 86400, '1w': 604800 }[tf] || 14400;
-    const from = now - secondsPerCandle * STRATEGY.CANDLE_LIMIT;
-    const tvUrl = `https://tvc4.investing.com/57bf5541e6f1767f88541b7b68415f38/0/0/0/0/history?symbol=${encodeURIComponent(asset.tradingview)}&resolution=${tvTf}&from=${from}&to=${now}`;
+  // Non-crypto assets (Futures, FX): server-side Yahoo Finance proxy
+  if (asset && asset.yahoo) {
+    const yahooTf = { '1h': '1h', '4h': '4h', '1d': '1d', '1w': '1wk' }[tf] || '4h';
+    const range   = { '1h': '1mo', '4h': '3mo', '1d': '2y', '1w': '10y' }[tf] || '3mo';
     return {
-      provider: 'tradingview',
-      url: tvUrl,
-      corsProxy: `https://api.allorigins.win/raw?url=${encodeURIComponent(tvUrl)}`,
+      provider: 'yahoo',
+      url: `/api/market-data?symbol=${encodeURIComponent(assetKey || state.currentAsset)}&interval=${yahooTf}&range=${range}`,
     };
   }
 
@@ -1179,7 +1175,7 @@ function renderTradeHistory() {
 }
 
 // ============================================================
-// FETCH CANDLES — Bitfinex/Binance for Crypto, TradingView UDF for Futures/FX
+// FETCH CANDLES — Bitfinex/Binance for Crypto, Yahoo Finance Proxy for Futures/FX
 // ============================================================
 
 async function fetchCandles(tf, assetKey) {
@@ -1190,9 +1186,9 @@ async function fetchCandles(tf, assetKey) {
     throw new Error(`No data provider configured for ${key}.`);
   }
 
-  // TradingView UDF provider (Futures, FX, Stocks)
-  if (urls.provider === 'tradingview') {
-    return await fetchTradingViewCandles(urls, key);
+  // Yahoo Finance proxy provider (Futures, FX, Stocks)
+  if (urls.provider === 'yahoo') {
+    return await fetchYahooCandles(urls, key);
   }
 
   // Crypto provider: Bitfinex primary, Binance fallback
@@ -1229,39 +1225,24 @@ async function fetchCandles(tf, assetKey) {
   }));
 }
 
-async function fetchTradingViewCandles(urls, key) {
-  let res;
-  try {
-    res = await fetch(urls.url);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  } catch (directErr) {
-    console.warn('TradingView direct fetch failed, trying CORS proxy:', directErr.message);
-    res = await fetch(urls.corsProxy);
-    if (!res.ok) throw new Error(`TradingView proxy HTTP ${res.status}`);
+async function fetchYahooCandles(urls, key) {
+  const res = await fetch(urls.url);
+  if (!res.ok) {
+    const errBody = await res.text().catch(() => '');
+    throw new Error(`Market data unavailable for ${key} (HTTP ${res.status}). ${errBody || 'Please try again later.'}`);
   }
   const data = await res.json();
 
-  if (data.s !== 'ok' || !data.t || data.t.length === 0) {
-    throw new Error(`No TradingView data for ${key} (status: ${data.s || 'unknown'})`);
+  if (!Array.isArray(data) || data.length === 0) {
+    throw new Error(`No market data available for ${key}. This instrument may not be supported yet.`);
   }
 
-  if (data.t.length < 50) {
-    throw new Error(`Insufficient TradingView data for ${key} (${data.t.length} candles)`);
+  if (data.length < 50) {
+    throw new Error(`Insufficient market data for ${key} (${data.length} candles). Try a shorter timeframe.`);
   }
 
-  // TradingView UDF format: { t:[timestamps], o:[opens], h:[highs], l:[lows], c:[closes], v:[volumes] }
-  const candles = [];
-  for (let i = 0; i < data.t.length; i++) {
-    candles.push({
-      time:   data.t[i] * 1000,  // convert seconds → milliseconds to match Bitfinex/Binance format
-      open:   data.o[i],
-      high:   data.h[i],
-      low:    data.l[i],
-      close:  data.c[i],
-      volume: data.v ? data.v[i] : 0,
-    });
-  }
-  return candles;
+  // Proxy returns normalized OHLCV: [{ time, open, high, low, close, volume }]
+  return data;
 }
 
 // ============================================================
