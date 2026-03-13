@@ -382,7 +382,7 @@ const Auth = (() => {
     if (show) {
       banner.innerHTML = `
         <span class="guest-banner-icon">&#9888;</span>
-        <span class="guest-banner-text">You are in guest mode — your data will not be saved across devices or deploys.</span>
+        <span class="guest-banner-text">Guest mode — your data will not be saved.</span>
         ${_isFirebaseConfigured() ? '<button class="guest-banner-cta" id="guest-sign-in-btn">Sign in</button>' : ''}
       `;
       const btn = document.getElementById('guest-sign-in-btn');
