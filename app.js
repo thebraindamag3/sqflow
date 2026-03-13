@@ -3,9 +3,16 @@
 // BTC/USD · Bitfinex
 // ============================================================
 
-const APP_VERSION    = 'v1.2.0';
-const DEPLOY_DATE    = '2026-03-13';
-const DEPLOY_TIME    = '08:51 UTC';
+const APP_VERSION = 'v1.2.0';
+
+// User's local timezone abbreviation (e.g. "CET", "EST", "GMT+5")
+const USER_TZ_ABBR = (() => {
+  try {
+    return new Intl.DateTimeFormat('en', { timeZoneName: 'short' })
+      .formatToParts(new Date())
+      .find(p => p.type === 'timeZoneName')?.value ?? '';
+  } catch { return ''; }
+})();
 
 // Timeframe → API interval mapping
 function getApiUrls(tf) {
@@ -1139,7 +1146,8 @@ function updateUI(r, capital) {
   }
 
   // Time
-  el('last-update').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  el('last-update').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    + (USER_TZ_ABBR ? '\u00a0' + USER_TZ_ABBR : '');
 }
 
 // ============================================================
@@ -1177,6 +1185,18 @@ function msUntilNextCandle() {
   return { ms: next - now, date: next };
 }
 
+function fmtCountdown(remainingMs) {
+  const totalSec = Math.floor(remainingMs / 1000);
+  const sec  = totalSec % 60;
+  const min  = Math.floor(totalSec / 60) % 60;
+  const hrs  = Math.floor(totalSec / 3600) % 24;
+  const days = Math.floor(totalSec / 86400);
+  if (currentTimeframe === '1w') return `${days}d ${hrs}h`;
+  if (currentTimeframe === '1d') return `${hrs}h ${min}m`;
+  if (currentTimeframe === '4h') return `${Math.floor(totalSec / 3600)}h ${min}m`;
+  return `${Math.floor(totalSec / 60)}m ${sec}s`; // 1h
+}
+
 function startCountdown() {
   clearInterval(countdownInterval);
   const bar    = el('countdown-bar');
@@ -1194,10 +1214,7 @@ function startCountdown() {
     const pct = (remaining / totalMs) * 100;
     bar.style.width = pct + '%';
 
-    // Format countdown
-    const m = Math.floor(remaining / 60000);
-    const s = Math.floor((remaining % 60000) / 1000);
-    nextEl.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    nextEl.textContent = fmtCountdown(remaining);
   }, 1000);
 }
 
@@ -1295,12 +1312,30 @@ el('capital-input').addEventListener('change', () => {
 // BOOT
 // ============================================================
 
-// Version + deploy info in footer
+// Version + deploy info in footer — loaded from version.json (stamped by build.js)
 const _footerMeta = el('footer-meta');
-if (_footerMeta) _footerMeta.innerHTML =
-  `<span class="footer-version">${APP_VERSION}</span>` +
-  `<span class="footer-sep">·</span>` +
-  `<span>Last deploy: ${DEPLOY_DATE} ${DEPLOY_TIME}</span>`;
+if (_footerMeta) {
+  _footerMeta.innerHTML =
+    `<span class="footer-version">${APP_VERSION}</span>`;
+
+  fetch('version.json?_=' + Date.now())
+    .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+    .then(v => {
+      if (!v.buildDate) return;
+      const d       = new Date(v.buildDate);
+      const dateStr = d.toLocaleDateString('en-CA');          // YYYY-MM-DD
+      const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const tz      = USER_TZ_ABBR ? '\u00a0' + USER_TZ_ABBR : '';
+      _footerMeta.innerHTML =
+        `<span class="footer-version">v${v.version}</span>` +
+        `<span class="footer-sep">·</span>` +
+        `<span>Last deploy: ${dateStr}\u00a0${timeStr}${tz}</span>`;
+    })
+    .catch(() => {
+      // Fetch unavailable (e.g. file:// protocol) — show version only
+      _footerMeta.innerHTML = `<span class="footer-version">${APP_VERSION}</span>`;
+    });
+}
 
 // Init timeframe button states
 document.querySelectorAll('.tf-btn').forEach(b => {

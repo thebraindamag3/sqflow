@@ -1,0 +1,8 @@
+{
+  "name": "mycfo",
+  "version": "1.2.0",
+  "description": "BTC/USD Signal Dashboard — Jaime Merino Strategy",
+  "scripts": {
+    "build": "node build.js"
+  }
+}
