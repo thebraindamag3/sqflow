@@ -1,5 +1,5 @@
 // ============================================================
-// myCFO — Jaime Merino Strategy Signal Engine
+// SqFlow — Jaime Merino Strategy Signal Engine
 // Multi-Asset · Bitfinex / Binance / Yahoo Finance Proxy
 // ============================================================
 
@@ -11,9 +11,9 @@ const SCHEMA_VERSION = '2';
 
 // ── Storage keys ─────────────────────────────────────────────
 const STORAGE_KEYS = {
-  ACTIVE_TRADES: 'myCFO_activeTrades',  // v2: array of trades
-  HISTORY:       'myCFO_tradeHistory',
-  SCHEMA:        'myCFO_schemaVersion',
+  ACTIVE_TRADES: 'sqFlow_activeTrades',  // v2: array of trades
+  HISTORY:       'sqFlow_tradeHistory',
+  SCHEMA:        'sqFlow_schemaVersion',
 };
 
 // ── Strategy constants (Jaime Merino) ────────────────────────
@@ -773,7 +773,7 @@ function loadTrades() {
 
   // ── Schema migration: v1 (single trade) → v2 (array) ───────
   if (storedSchema !== SCHEMA_VERSION) {
-    const v1Raw = localStorage.getItem('myCFO_activeTrade');
+    const v1Raw = localStorage.getItem('sqFlow_activeTrade');
     if (v1Raw) {
       try {
         const v1Trade = JSON.parse(v1Raw);
@@ -787,7 +787,7 @@ function loadTrades() {
         }
       } catch (_) {}
     }
-    localStorage.removeItem('myCFO_activeTrade');
+    localStorage.removeItem('sqFlow_activeTrade');
     localStorage.removeItem(STORAGE_KEYS.ACTIVE_TRADES);
     localStorage.setItem(STORAGE_KEYS.SCHEMA, SCHEMA_VERSION);
     state.activeTrades = [];

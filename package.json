@@ -1,7 +1,7 @@
 {
-  "name": "mycfo",
+  "name": "sqflow",
   "version": "1.4.0",
-  "description": "BTC/USD Signal Dashboard — Jaime Merino Strategy",
+  "description": "Multi-Asset Signal Dashboard — Jaime Merino Strategy",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

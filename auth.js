@@ -1,5 +1,5 @@
 // ============================================================
-// myCFO — Authentication Module
+// SqFlow — Authentication Module
 // Firebase Auth + Firestore
 //
 // Supports: Google OAuth, Apple Sign-In, X (Twitter) OAuth,
@@ -34,8 +34,8 @@ const _AUTH_RATE = {
 };
 
 const _AUTH_KEYS = {
-  ATTEMPTS:      'myCFO_loginAttempts',
-  LOCKOUT_UNTIL: 'myCFO_lockoutUntil',
+  ATTEMPTS:      'sqFlow_loginAttempts',
+  LOCKOUT_UNTIL: 'sqFlow_lockoutUntil',
 };
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -119,7 +119,7 @@ const Auth = (() => {
   // ── Initialization ─────────────────────────────────────────
   function _init() {
     if (!_isFirebaseConfigured()) {
-      console.warn('[myCFO Auth] Firebase not configured — running in guest-only mode.');
+      console.warn('[SqFlow Auth] Firebase not configured — running in guest-only mode.');
       _guest = true;
       _ready = true;
       _flush({ user: null, isGuest: true, firebaseReady: false });
@@ -160,7 +160,7 @@ const Auth = (() => {
         else       _hideAuthModal();
       });
     } catch (e) {
-      console.error('[myCFO Auth] Firebase init error:', e);
+      console.error('[SqFlow Auth] Firebase init error:', e);
       _guest = true;
       _ready = true;
       _flush({ user: null, isGuest: true, firebaseReady: false });
@@ -188,10 +188,10 @@ const Auth = (() => {
       ]);
 
       if (tradesDoc.exists) {
-        localStorage.setItem('myCFO_activeTrades', JSON.stringify(tradesDoc.data().trades || []));
+        localStorage.setItem('sqFlow_activeTrades', JSON.stringify(tradesDoc.data().trades || []));
       }
       if (histDoc.exists) {
-        localStorage.setItem('myCFO_tradeHistory', JSON.stringify(histDoc.data().history || []));
+        localStorage.setItem('sqFlow_tradeHistory', JSON.stringify(histDoc.data().history || []));
       }
 
       // Reload app data from updated localStorage
@@ -203,7 +203,7 @@ const Auth = (() => {
         ensureMonitorRunning();
       }
     } catch (e) {
-      console.error('[myCFO Auth] Cloud sync failed:', e);
+      console.error('[SqFlow Auth] Cloud sync failed:', e);
     }
   }
 
@@ -212,8 +212,8 @@ const Auth = (() => {
   async function _migrateGuestData() {
     if (!_db || !_user) return;
     try {
-      const guestTrades  = _parseLs('myCFO_activeTrades', []);
-      const guestHistory = _parseLs('myCFO_tradeHistory', []);
+      const guestTrades  = _parseLs('sqFlow_activeTrades', []);
+      const guestHistory = _parseLs('sqFlow_tradeHistory', []);
       if (!guestTrades.length && !guestHistory.length) return;
 
       const uid = _user.uid;
@@ -241,9 +241,9 @@ const Auth = (() => {
         _db.collection('users').doc(uid).collection('state').doc('tradeHistory')
            .set({ history: mergedHistory, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }),
       ]);
-      console.log('[myCFO Auth] Guest session data migrated to Firestore.');
+      console.log('[SqFlow Auth] Guest session data migrated to Firestore.');
     } catch (e) {
-      console.error('[myCFO Auth] Migration failed:', e);
+      console.error('[SqFlow Auth] Migration failed:', e);
     }
   }
 
@@ -331,7 +331,7 @@ const Auth = (() => {
                .collection('state').doc('activeTrades')
                .set({ trades, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
       return true;
-    } catch (e) { console.error('[myCFO Auth] saveActiveTrades:', e); return false; }
+    } catch (e) { console.error('[SqFlow Auth] saveActiveTrades:', e); return false; }
   }
 
   async function saveTradeHistory(history) {
@@ -341,7 +341,7 @@ const Auth = (() => {
                .collection('state').doc('tradeHistory')
                .set({ history, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
       return true;
-    } catch (e) { console.error('[myCFO Auth] saveTradeHistory:', e); return false; }
+    } catch (e) { console.error('[SqFlow Auth] saveTradeHistory:', e); return false; }
   }
 
   // ── Header user block ───────────────────────────────────────
@@ -369,7 +369,7 @@ const Auth = (() => {
     `;
     wrap.style.display = 'flex';
     document.getElementById('signout-btn').addEventListener('click', () => {
-      if (confirm('Sign out of myCFO?')) signOut();
+      if (confirm('Sign out of SqFlow?')) signOut();
     });
   }
 
@@ -448,8 +448,8 @@ const Auth = (() => {
     `;
 
     return `
-      <div class="auth-modal" role="dialog" aria-modal="true" aria-label="Sign in to myCFO">
-        <div class="auth-modal-logo">myCFO</div>
+      <div class="auth-modal" role="dialog" aria-modal="true" aria-label="Sign in to SqFlow">
+        <div class="auth-modal-logo">SqFlow</div>
         <div class="auth-modal-subtitle">Signal your edge. Own your trades.</div>
 
         <div id="auth-error"   class="auth-error"   style="display:none" role="alert"></div>
