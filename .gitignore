@@ -3,5 +3,6 @@
 version.json
 
 # Environment files with real credentials — never commit these.
+.env
 .env.local
 .env*.local
