@@ -21,7 +21,13 @@ let FIREBASE_CONFIG = null;
 
 // ── Rate-limiting constants ───────────────────────────────────
 // Brute-force protection: max 5 email/password sign-in attempts per minute per browser.
-// (Firebase also enforces server-side rate limiting.)
+//
+// M-02 NOTE: This rate limiter runs entirely in the browser (localStorage) and is
+// intentionally UX-only — it gives immediate feedback and discourages casual abuse.
+// It can be bypassed by clearing localStorage or using a different browser/device.
+// The true security backstop is Firebase's own server-side rate limiter, which returns
+// auth/too-many-requests when an account or IP exceeds its threshold. This client-side
+// limit is NOT a substitute for that protection.
 const _AUTH_RATE = {
   maxAttempts: 5,
   windowMs:    60_000,  // 1-minute sliding window
@@ -353,8 +359,11 @@ const Auth = (() => {
     const name       = user.displayName || user.email || 'User';
     const photo      = user.photoURL;
     const initials   = name.split(/\s+/).map(p => p[0] || '').join('').slice(0, 2).toUpperCase();
+    // L-01 fix: escape the photo URL before injecting it into an HTML attribute.
+    // Firebase sanitises photoURL values, but defense-in-depth prevents attribute
+    // breakout if the value ever contains a double-quote character.
     const avatarHTML = photo
-      ? `<img class="user-avatar-img" src="${photo}" alt="" referrerpolicy="no-referrer" />`
+      ? `<img class="user-avatar-img" src="${_esc(photo)}" alt="" referrerpolicy="no-referrer" />`
       : `<span class="user-avatar-initials">${initials}</span>`;
 
     wrap.innerHTML = `

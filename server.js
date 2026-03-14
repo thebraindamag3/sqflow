@@ -8,9 +8,77 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
-const url = require('url');
 
 const PORT = process.env.PORT || 3000;
+
+// ── CORS allowlist ────────────────────────────────────────────
+// Only these origins are permitted to make cross-origin API requests.
+// H-02 fix: replace wildcard Access-Control-Allow-Origin with an explicit allowlist.
+const ALLOWED_ORIGINS = new Set([
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'https://thebraindamag3.github.io',
+]);
+
+// ── Security headers helper ───────────────────────────────────
+// H-01 fix: apply security headers to every HTTP response.
+function addSecurityHeaders(res) {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader(
+    'Content-Security-Policy',
+    [
+      "default-src 'self'",
+      "script-src 'self' https://www.gstatic.com",
+      // Allow connections to Firebase, Yahoo Finance, and crypto APIs
+      "connect-src 'self' https://api-pub.bitfinex.com https://api.binance.com " +
+        "https://query1.finance.yahoo.com https://api.allorigins.win https://corsproxy.io " +
+        "https://*.firebaseio.com https://identitytoolkit.googleapis.com " +
+        "https://securetoken.googleapis.com",
+      "style-src 'self' 'unsafe-inline'",
+      // Allow Google user profile pictures in avatars
+      "img-src 'self' data: https://lh3.googleusercontent.com",
+      "font-src 'self'",
+      "frame-ancestors 'none'",
+    ].join('; ')
+  );
+  // HSTS is only effective over HTTPS; enable when deployed behind TLS.
+  // res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+}
+
+// ── CORS headers helper ───────────────────────────────────────
+// H-02 fix: only set CORS header for explicitly allowed origins.
+function setCORSHeaders(req, res) {
+  const origin = req.headers['origin'];
+  if (origin && ALLOWED_ORIGINS.has(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    // Vary: Origin tells caches to store separate responses per origin.
+    res.setHeader('Vary', 'Origin');
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+}
+
+// ── Server-side rate limiter (token bucket, no dependencies) ──
+// Limits each IP to 60 requests per minute on API routes.
+const _rateLimitMap = new Map();
+function _isRateLimited(ip) {
+  const now = Date.now();
+  const entry = _rateLimitMap.get(ip) || { count: 0, resetAt: now + 60_000 };
+  if (now > entry.resetAt) { entry.count = 0; entry.resetAt = now + 60_000; }
+  entry.count++;
+  _rateLimitMap.set(ip, entry);
+  return entry.count > 60;
+}
+// Periodically evict expired entries to prevent unbounded memory growth.
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of _rateLimitMap) {
+    if (now > entry.resetAt) _rateLimitMap.delete(ip);
+  }
+}, 60_000);
 
 // ── Load .env.local (simple parser, zero dependencies) ───────
 function loadEnvFile(filePath) {
@@ -128,10 +196,17 @@ function aggregate4h(candles) {
 }
 
 // ── Yahoo Finance proxy handler ──────────────────────────────
+
+// M-04 fix: validate interval and range against explicit allowlists to prevent
+// URL parameter injection into the upstream Yahoo Finance request.
+const VALID_INTERVALS = new Set(['1m', '5m', '15m', '30m', '1h', '4h', '1d', '1wk', '1mo']);
+const VALID_RANGES    = new Set(['1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y', '10y', 'ytd', 'max']);
+
 async function handleMarketData(query, res) {
   const symbol = query.symbol;
-  let interval = query.interval || '4h';
-  const range = query.range || '3mo';
+  // Fall back to safe defaults if caller supplies an unrecognised value.
+  const interval = VALID_INTERVALS.has(query.interval) ? query.interval : '4h';
+  const range    = VALID_RANGES.has(query.range)       ? query.range    : '3mo';
 
   if (!symbol) {
     res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -239,8 +314,10 @@ function serveStatic(pathname, res) {
   const safePath = path.normalize(pathname).replace(/^(\.\.[/\\])+/, '');
   const filePath = path.join(__dirname, safePath);
 
-  // Ensure the file is within the project directory
-  if (!filePath.startsWith(__dirname)) {
+  // L-03 fix: use path.sep to prevent prefix confusion (e.g. /app vs /application).
+  // Without the separator a directory named /appX would pass the __dirname check.
+  const projectDir = __dirname + path.sep;
+  if (filePath !== __dirname && !filePath.startsWith(projectDir)) {
     res.writeHead(403);
     res.end('Forbidden');
     return;
@@ -267,18 +344,29 @@ function serveStatic(pathname, res) {
 
 // ── HTTP server ──────────────────────────────────────────────
 const server = http.createServer((req, res) => {
-  const parsed = url.parse(req.url, true);
-  const pathname = parsed.pathname;
+  // H-01 fix: apply security headers to every response.
+  addSecurityHeaders(res);
 
-  // CORS headers for API routes
+  // L-04 fix: use WHATWG URL API instead of deprecated url.parse.
+  const parsed   = new URL(req.url, 'http://localhost');
+  const pathname = parsed.pathname;
+  const query    = Object.fromEntries(parsed.searchParams);
+
+  // H-02 fix: CORS headers for API routes — origin-scoped, not wildcard.
   if (pathname.startsWith('/api/')) {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    setCORSHeaders(req, res);
 
     if (req.method === 'OPTIONS') {
       res.writeHead(204);
       res.end();
+      return;
+    }
+
+    // Rate-limit all API routes to 60 req/min per IP.
+    const ip = req.socket.remoteAddress || 'unknown';
+    if (_isRateLimited(ip)) {
+      res.writeHead(429, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Too many requests. Please slow down.' }));
       return;
     }
   }
@@ -292,7 +380,7 @@ const server = http.createServer((req, res) => {
 
   // Route: /api/market-data
   if (pathname === '/api/market-data' && req.method === 'GET') {
-    handleMarketData(parsed.query, res);
+    handleMarketData(query, res);
     return;
   }
 

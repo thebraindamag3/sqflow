@@ -250,7 +250,22 @@
 
   </div>
 
-  <!-- Firebase SDK (compat build — same API surface as v8) -->
+  <!--
+    Firebase SDK (compat build — same API surface as v8)
+
+    M-03 SECURITY: Subresource Integrity (SRI) hashes should be added to each script
+    tag below to detect CDN-level tampering or MITM injection of a modified SDK.
+    Generate the sha384 hash for each file and add integrity + crossorigin attributes:
+
+      curl -s https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js \
+        | openssl dgst -sha384 -binary | openssl base64 -A
+
+    Then add to each <script> tag:
+      integrity="sha384-<COMPUTED_HASH>" crossorigin="anonymous"
+
+    Alternatively, bundle the Firebase SDK locally using a build tool to avoid CDN
+    dependency entirely.
+  -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
