@@ -14,10 +14,14 @@
 // ============================================================
 
 // ── Firebase project configuration ───────────────────────────
-// Loaded at runtime from the server (/api/firebase-config).
-// The server reads credentials from .env.local (never committed).
+// Loaded at build time from Vite environment variables (VITE_FIREBASE_*).
+// Copy .env.example to .env and fill in your Firebase credentials.
 // See .env.example for the required keys.
-let FIREBASE_CONFIG = null;
+import { firebaseConfig } from './src/lib/firebase-config';
+import { initializeApp } from 'firebase/app';
+
+const app = initializeApp(firebaseConfig);
+let FIREBASE_CONFIG = firebaseConfig;
 
 // ── Rate-limiting constants ───────────────────────────────────
 // Brute-force protection: max 5 email/password sign-in attempts per minute per browser.
@@ -119,14 +123,6 @@ const Auth = (() => {
 
   // ── Initialization ─────────────────────────────────────────
   async function _init() {
-    // Fetch Firebase config from the server (reads .env.local)
-    try {
-      const res = await fetch('/api/firebase-config');
-      if (res.ok) FIREBASE_CONFIG = await res.json();
-    } catch (_) {
-      // Server unreachable — will fall through to guest mode
-    }
-
     // Validate required config keys
     if (_isFirebaseConfigured()) {
       const requiredKeys = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId'];
@@ -149,7 +145,6 @@ const Auth = (() => {
     }
 
     try {
-      firebase.initializeApp(FIREBASE_CONFIG);
       _auth = firebase.auth();
       _db   = firebase.firestore();
 
