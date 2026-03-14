@@ -12,6 +12,38 @@ const url = require('url');
 
 const PORT = process.env.PORT || 3000;
 
+// ── Load .env.local (simple parser, zero dependencies) ───────
+function loadEnvFile(filePath) {
+  try {
+    const content = fs.readFileSync(filePath, 'utf8');
+    for (const line of content.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const eqIdx = trimmed.indexOf('=');
+      if (eqIdx === -1) continue;
+      const key = trimmed.slice(0, eqIdx).trim();
+      const val = trimmed.slice(eqIdx + 1).trim();
+      if (!process.env[key]) process.env[key] = val;
+    }
+  } catch (_) {
+    // .env.local is optional — app runs in guest mode without it
+  }
+}
+loadEnvFile(path.join(__dirname, '.env.local'));
+
+// ── Firebase config from environment variables ───────────────
+function getFirebaseConfig() {
+  return {
+    apiKey:            process.env.FIREBASE_API_KEY            || '',
+    authDomain:        process.env.FIREBASE_AUTH_DOMAIN        || '',
+    projectId:         process.env.FIREBASE_PROJECT_ID         || '',
+    storageBucket:     process.env.FIREBASE_STORAGE_BUCKET     || '',
+    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || '',
+    appId:             process.env.FIREBASE_APP_ID             || '',
+    measurementId:     process.env.FIREBASE_MEASUREMENT_ID     || '',
+  };
+}
+
 // ── Symbol mapping: internal keys → Yahoo Finance tickers ────
 const YAHOO_SYMBOLS = {
   // Futures — Indices
@@ -249,6 +281,13 @@ const server = http.createServer((req, res) => {
       res.end();
       return;
     }
+  }
+
+  // Route: /api/firebase-config — serves Firebase config from env vars
+  if (pathname === '/api/firebase-config' && req.method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(getFirebaseConfig()));
+    return;
   }
 
   // Route: /api/market-data
