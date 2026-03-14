@@ -103,16 +103,40 @@ function isMarketOpen(assetKey) {
   return true;
 }
 
+// Convert an ET hour (0-23) to the user's local time string.
+// Dynamically computes the current ET→UTC offset so DST is handled correctly.
+function etToLocalTimeStr(etHour, etMinute = 0) {
+  const now = new Date();
+  // Sample current ET hour/minute via Intl to get the live ET offset from UTC
+  const etParts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(now);
+  const etH = parseInt(etParts.find(p => p.type === 'hour').value, 10) % 24;
+  const etM = parseInt(etParts.find(p => p.type === 'minute').value, 10);
+  const etOffsetMin = (now.getUTCHours() * 60 + now.getUTCMinutes()) - (etH * 60 + etM);
+  // Build a Date at the target ET hour in UTC, then format in local time
+  const base = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0));
+  const targetDate = new Date(base.getTime() + (etHour * 60 + etMinute + etOffsetMin) * 60000);
+  return targetDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
 function getMarketScheduleLabel(assetKey) {
   const asset = ASSETS[assetKey || state.currentAsset];
   if (!asset) return '';
-  const labels = {
-    cme:   'Sun–Fri 18:00–17:00 ET (break 17:00–18:00)',
-    eurex: 'Mon–Fri 02:00–22:00 ET',
-    forex: 'Sun 17:00 ET – Fri 17:00 ET',
-    crypto:'24/7',
-  };
-  return labels[asset.market] || '';
+  const tz = USER_TZ_ABBR ? ` ${USER_TZ_ABBR}` : '';
+  switch (asset.market) {
+    case 'cme':
+      return `CME: Sun–Fri 18:00–17:00 ET · your time: ${etToLocalTimeStr(18)}–${etToLocalTimeStr(17)}${tz} (daily break ${etToLocalTimeStr(17)}–${etToLocalTimeStr(18)}${tz})`;
+    case 'eurex':
+      return `Eurex: Mon–Fri 02:00–22:00 ET · your time: ${etToLocalTimeStr(2)}–${etToLocalTimeStr(22)}${tz}`;
+    case 'forex':
+      return `Forex: Sun 17:00 – Fri 17:00 ET · your time: ${etToLocalTimeStr(17)}${tz} Sun – ${etToLocalTimeStr(17)}${tz} Fri`;
+    case 'crypto':
+      return '24/7';
+    default:
+      return '';
+  }
 }
 
 // User's local timezone abbreviation (e.g. "CET", "EST", "GMT+5")
@@ -169,6 +193,11 @@ const state = {
   monitorInterval:  null, // single 30s interval for all open trades
   lastCandles:      null, // cache last fetched candles for current TF
 };
+
+// Per-asset candle cache — keyed by `${assetKey}|${tf}`.
+// Populated by run() and the 30 s monitor so closeTrade() can look up
+// the correct last price even when a different asset is currently displayed.
+const candleCache = {};
 
 // ============================================================
 // MATH HELPERS
@@ -747,16 +776,39 @@ function closeTrade(tradeId, exitPrice, reason) {
   if (idx === -1) return;
 
   const trade = state.activeTrades[idx];
+
+  // Use the per-asset candle cache so the exit price is always for THIS trade's
+  // instrument, even when the user is currently viewing a different asset.
   const ep = exitPrice != null
     ? exitPrice
-    : (state.lastCandles ? state.lastCandles[state.lastCandles.length - 1].close : trade.entryPrice);
+    : (() => {
+        const key = `${trade.asset || 'BTC/USD'}|${trade.timeframe || state.currentTimeframe}`;
+        const cached = candleCache[key];
+        if (cached && cached.length > 0) return cached[cached.length - 1].close;
+        // Same-asset fallback
+        if (state.lastCandles && state.lastCandles.length > 0) return state.lastCandles[state.lastCandles.length - 1].close;
+        return trade.entryPrice;
+      })();
 
   saveTradeToHistory(trade, ep, reason || 'manual');
   state.activeTrades.splice(idx, 1);
   saveTrades();
-  renderTradeMonitors();
-  renderTradeHistory();
 
+  // Remove only the closed trade's card — rebuilding all cards via renderTradeMonitors()
+  // would reset every remaining card to "Analyzing…" until the next 30 s monitor tick.
+  const card = el(`trade-card-${tradeId}`);
+  if (card) card.remove();
+
+  // Sync the badge and empty-state (same logic as renderTradeMonitors)
+  const badge = el('activetrades-tab-badge');
+  if (badge) {
+    badge.textContent   = state.activeTrades.length;
+    badge.style.display = state.activeTrades.length ? '' : 'none';
+  }
+  const emptyEl = el('activetrades-empty');
+  if (emptyEl) emptyEl.style.display = state.activeTrades.length === 0 ? '' : 'none';
+
+  renderTradeHistory();
   if (state.activeTrades.length === 0) stopTradeMonitor();
 }
 
@@ -965,6 +1017,7 @@ function ensureMonitorRunning() {
       const [tf, asset] = key.split('|');
       try {
         const candles = await fetchCandles(tf, asset);
+        candleCache[`${asset}|${tf}`] = candles;
         if (tf === state.currentTimeframe && asset === state.currentAsset) state.lastCandles = candles;
         trades.forEach(trade => {
           const exit = analyzeExitSignals(candles, trade);
@@ -1404,6 +1457,23 @@ function fmtUSD(n) {
 
 function el(id) { return document.getElementById(id); }
 
+// Show or hide the dashboard sections that are only meaningful when the market is open.
+// Sections: Trade Parameters (capital + params), Entry Conditions, Live Indicators,
+//           Next-candle countdown.  The Refresh button always stays visible.
+function setMarketSectionsVisible(visible) {
+  const d = visible ? '' : 'none';
+  const tradeSection      = document.querySelector('.trade-section');
+  const conditionsSection = document.querySelector('.conditions-section');
+  const indicatorsSection = document.querySelector('.indicators-section');
+  const nextCandleSpan    = el('next-candle') ? el('next-candle').parentElement : null;
+  const countdownBarWrap  = document.querySelector('.countdown-bar-wrap');
+  if (tradeSection)      tradeSection.style.display      = d;
+  if (conditionsSection) conditionsSection.style.display = d;
+  if (indicatorsSection) indicatorsSection.style.display = d;
+  if (nextCandleSpan)    nextCandleSpan.style.display    = d;
+  if (countdownBarWrap)  countdownBarWrap.style.display  = d;
+}
+
 function setSignalCard(signal) {
   const card = el('signal-card');
 
@@ -1755,6 +1825,8 @@ async function run() {
     if (priceEl) priceEl.textContent = '—';
     const changeEl = el('asset-change');
     if (changeEl) changeEl.textContent = '';
+    // Hide sections that only make sense when the market is open
+    setMarketSectionsVisible(false);
     btn.disabled    = false;
     btn.textContent = '↻ Refresh Now';
     return;
@@ -1762,7 +1834,10 @@ async function run() {
 
   try {
     const candles = await fetchCandles();
-    state.lastCandles   = candles;
+    state.lastCandles = candles;
+    candleCache[`${state.currentAsset}|${state.currentTimeframe}`] = candles;
+    // Ensure market-sensitive sections are visible now that we have live data
+    setMarketSectionsVisible(true);
     state.lastResult    = analyzeSignal(candles, capital);
     updateUI(state.lastResult, capital);
     startCountdown();
