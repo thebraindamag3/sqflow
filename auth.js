@@ -448,9 +448,23 @@ const Auth = (() => {
           </div>
           <div class="auth-field">
             <label class="auth-label" for="auth-password">Password</label>
-            <input class="auth-input" type="password" id="auth-password"
-              autocomplete="${isSignIn ? 'current-password' : 'new-password'}"
-              placeholder="${pwdPlaceholder}" required />
+            <div class="auth-password-wrap">
+              <input class="auth-input" type="password" id="auth-password"
+                autocomplete="${isSignIn ? 'current-password' : 'new-password'}"
+                placeholder="${pwdPlaceholder}" required />
+              <button type="button" class="auth-pwd-toggle" id="auth-pwd-toggle"
+                aria-label="Show password" title="Show password">
+                <svg class="pwd-eye-icon" id="pwd-eye-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+                <svg class="pwd-eye-icon" id="pwd-eye-closed" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="display:none">
+                  <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                  <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                  <line x1="1" y1="1" x2="23" y2="23"/>
+                </svg>
+              </button>
+            </div>
           </div>
           <button type="submit" class="auth-submit-btn" id="auth-submit">
             ${isSignIn ? 'Sign In' : 'Create Account'}
@@ -554,6 +568,23 @@ const Auth = (() => {
         _mode = _mode === 'signin' ? 'register' : 'signin';
         _setError('');
         _rebuildModal();
+      });
+    }
+
+    // ── Password visibility toggle ──
+    const pwdToggle = document.getElementById('auth-pwd-toggle');
+    if (pwdToggle) {
+      pwdToggle.addEventListener('click', () => {
+        const pwdInput = document.getElementById('auth-password');
+        const eyeOpen  = document.getElementById('pwd-eye-open');
+        const eyeClosed = document.getElementById('pwd-eye-closed');
+        if (!pwdInput) return;
+        const show = pwdInput.type === 'password';
+        pwdInput.type = show ? 'text' : 'password';
+        pwdToggle.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+        pwdToggle.title = show ? 'Hide password' : 'Show password';
+        if (eyeOpen)   eyeOpen.style.display  = show ? 'none' : '';
+        if (eyeClosed) eyeClosed.style.display = show ? '' : 'none';
       });
     }
 
