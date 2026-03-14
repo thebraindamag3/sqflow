@@ -1748,3 +1748,37 @@ html, body {
     max-width: 1080px;
   }
 }
+
+/* ============================================================
+   ACTIVE TRADES — EMPTY STATE
+   ============================================================ */
+
+.activetrades-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 24px;
+  text-align: center;
+  gap: 12px;
+}
+
+.activetrades-empty-icon {
+  font-size: 48px;
+  line-height: 1;
+  opacity: 0.5;
+}
+
+.activetrades-empty-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  opacity: 0.8;
+}
+
+.activetrades-empty-msg {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  max-width: 320px;
+  line-height: 1.5;
+}

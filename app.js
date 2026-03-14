@@ -864,6 +864,19 @@ function renderTradeMonitors() {
     card.querySelector('.close-trade-btn').addEventListener('click', () => closeTrade(trade.id));
     container.appendChild(card);
   });
+
+  // Update Active Trades tab badge
+  const badge = el('activetrades-tab-badge');
+  if (badge) {
+    badge.textContent   = state.activeTrades.length;
+    badge.style.display = state.activeTrades.length ? '' : 'none';
+  }
+
+  // Show/hide empty state
+  const emptyEl = el('activetrades-empty');
+  if (emptyEl) {
+    emptyEl.style.display = state.activeTrades.length === 0 ? '' : 'none';
+  }
 }
 
 // Update the live data inside one trade card (no DOM rebuild).
@@ -1661,8 +1674,9 @@ function switchTab(tab) {
     b.classList.toggle('active', isActive);
     b.setAttribute('aria-selected', isActive);
   });
-  el('panel-dashboard').style.display = tab === 'dashboard' ? '' : 'none';
-  el('panel-history').style.display   = tab === 'history'   ? '' : 'none';
+  el('panel-dashboard').style.display    = tab === 'dashboard'    ? '' : 'none';
+  el('panel-activetrades').style.display = tab === 'activetrades' ? '' : 'none';
+  el('panel-history').style.display      = tab === 'history'      ? '' : 'none';
 }
 
 // ============================================================
