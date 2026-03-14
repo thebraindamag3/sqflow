@@ -1,0 +1,33 @@
+name: Claude Autonomous Task
+description: Create a task for @claude to implement it 100% autonomously
+title: "[Task] "
+labels: ["claude"]
+assignees: ["@thebraindamag3"]   # ← Change to your GitHub username or leave empty
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Instructions for Claude:**
+        Implement this task autonomously using the instructions below.
+  - type: textarea
+    id: description
+    attributes:
+      label: Task Description
+      description: Explain exactly what you want Claude to do (you can write in English or Spanish)
+      placeholder: I want to add a login system with Supabase...
+      value: |
+        [REPLACE THIS WITH YOUR TASK DESCRIPTION]
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: |
+        @claude implement this in a fully autonomous way and without asking me for any confirmation.
+        First, post a brief plan in a comment, then execute everything yourself:
+        - Create a new branch
+        - Implement exactly what was requested
+        - Run existing tests if any
+        - Commit with a message like: "feat: resolve #XXX — short description"
+        - Include "Closes #XXX" in the commit body
+        - Open the Pull Request directly
+        Do not ask me anything. Proceed directly.
