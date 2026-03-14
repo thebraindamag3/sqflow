@@ -9,19 +9,15 @@
 //   2. Create a project (or select existing)
 //   3. Enable Authentication providers: Google, Email/Password
 //   4. Enable Firestore Database (start in production mode)
-//   5. Replace the FIREBASE_CONFIG values below with your project credentials
+//   5. Copy .env.example to .env.local and fill in your Firebase credentials
+//   6. Restart the dev server (npm start)
 // ============================================================
 
 // ── Firebase project configuration ───────────────────────────
-// Replace these placeholder values with your actual Firebase config.
-const FIREBASE_CONFIG = {
-  apiKey:            'YOUR_API_KEY',
-  authDomain:        'YOUR_PROJECT_ID.firebaseapp.com',
-  projectId:         'YOUR_PROJECT_ID',
-  storageBucket:     'YOUR_PROJECT_ID.appspot.com',
-  messagingSenderId: 'YOUR_SENDER_ID',
-  appId:             'YOUR_APP_ID',
-};
+// Loaded at runtime from the server (/api/firebase-config).
+// The server reads credentials from .env.local (never committed).
+// See .env.example for the required keys.
+let FIREBASE_CONFIG = null;
 
 // ── Rate-limiting constants ───────────────────────────────────
 // Brute-force protection: max 5 email/password sign-in attempts per minute per browser.
@@ -96,7 +92,7 @@ function _sanitizeError(code) {
 }
 
 function _isFirebaseConfigured() {
-  return FIREBASE_CONFIG.apiKey !== 'YOUR_API_KEY';
+  return FIREBASE_CONFIG && FIREBASE_CONFIG.apiKey && FIREBASE_CONFIG.apiKey !== 'YOUR_API_KEY';
 }
 
 function _parseLs(key, fallback) {
@@ -116,7 +112,25 @@ const Auth = (() => {
   let _modal   = null;
 
   // ── Initialization ─────────────────────────────────────────
-  function _init() {
+  async function _init() {
+    // Fetch Firebase config from the server (reads .env.local)
+    try {
+      const res = await fetch('/api/firebase-config');
+      if (res.ok) FIREBASE_CONFIG = await res.json();
+    } catch (_) {
+      // Server unreachable — will fall through to guest mode
+    }
+
+    // Validate required config keys
+    if (_isFirebaseConfigured()) {
+      const requiredKeys = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId'];
+      const missingKeys = requiredKeys.filter(key => !FIREBASE_CONFIG[key]);
+      if (missingKeys.length > 0) {
+        console.error(`[SqFlow Auth] Firebase config incomplete. Missing: ${missingKeys.join(', ')}`);
+        FIREBASE_CONFIG = null; // Force guest mode
+      }
+    }
+
     if (!_isFirebaseConfigured()) {
       console.warn('[SqFlow Auth] Firebase not configured — running in guest-only mode.');
       _guest = true;
