@@ -1285,6 +1285,18 @@ function looksLikeHtml(text) {
   return trimmed.startsWith('<!doctype') || trimmed.startsWith('<html');
 }
 
+// L-02 fix: HTML-encode a string before inserting it into innerHTML.
+// This prevents XSS even if the string originates from an untrusted source
+// (e.g. a manipulated CORS proxy response that injects HTML into the error message).
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 async function fetchYahooCandles(urls, key) {
   const errors = [];
 
@@ -1310,6 +1322,12 @@ async function fetchYahooCandles(urls, key) {
   }
 
   // Strategy 2: Direct Yahoo Finance via CORS proxy (works on GitHub Pages)
+  // M-01 SECURITY NOTE: These are free, unverified public CORS proxies. They can
+  // observe all market data queries (symbols, timeframes) and could theoretically
+  // serve manipulated candle data. They are used here as a fallback when the local
+  // Node.js server is not available (e.g. static GitHub Pages deployments).
+  // For production or financial-accuracy-critical deployments, host the Node.js
+  // server instead (e.g. Railway, Render, Fly.io) and never reach this fallback.
   const corsProxies = [
     (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
     (u) => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
@@ -1698,10 +1716,10 @@ async function run() {
         <div class="error-state" role="alert">
           <div class="error-state-icon" aria-hidden="true">&#9888;</div>
           <div class="error-state-title">Unable to Load Market Data</div>
-          <div class="error-state-message">${safeMsg}</div>
+          <div class="error-state-message">${escHtml(safeMsg)}</div>
           <details class="error-state-details">
             <summary>Technical details</summary>
-            <pre>${safeMsg}</pre>
+            <pre>${escHtml(safeMsg)}</pre>
           </details>
           <button class="error-state-retry" id="error-retry-btn" aria-label="Retry loading market data">Retry</button>
         </div>
