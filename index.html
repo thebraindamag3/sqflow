@@ -52,6 +52,10 @@
     <!-- TAB NAVIGATION -->
     <nav class="tab-nav" aria-label="Main navigation">
       <button class="tab-nav-btn active" data-tab="dashboard" aria-selected="true" role="tab">Dashboard</button>
+      <button class="tab-nav-btn" data-tab="activetrades" aria-selected="false" role="tab">
+        Active Trades
+        <span class="tab-badge" id="activetrades-tab-badge" style="display:none" aria-label="Active trade count"></span>
+      </button>
       <button class="tab-nav-btn" data-tab="history" aria-selected="false" role="tab">
         History
         <span class="tab-badge" id="history-tab-badge" style="display:none" aria-label="Trade count"></span>
@@ -92,9 +96,6 @@
             <div class="enter-trade-note">Records your entry and starts 30s exit monitoring</div>
           </div>
         </section>
-
-        <!-- ACTIVE TRADE MONITORS — one card per open trade, rendered dynamically -->
-        <div id="trades-monitor-list" role="region" aria-label="Active trades" aria-live="polite"></div>
 
         <!-- CAPITAL INPUT + TRADE PARAMS -->
         <section class="trade-section" aria-label="Trade parameters">
@@ -222,6 +223,20 @@
           </div>
         </section>
 
+      </main>
+    </div>
+
+    <!-- ACTIVE TRADES PANEL -->
+    <div id="panel-activetrades" style="display:none" role="tabpanel" aria-label="Active trades">
+      <main class="main">
+        <!-- ACTIVE TRADE MONITORS — one card per open trade, rendered dynamically -->
+        <div id="trades-monitor-list" role="region" aria-label="Active trades" aria-live="polite"></div>
+        <!-- EMPTY STATE — shown when there are no active trades -->
+        <div id="activetrades-empty" class="activetrades-empty" style="display:none" aria-live="polite">
+          <div class="activetrades-empty-icon" aria-hidden="true">📊</div>
+          <div class="activetrades-empty-title">No Active Trades</div>
+          <div class="activetrades-empty-msg">When you enter a trade from the Dashboard, it will appear here for real-time monitoring.</div>
+        </div>
       </main>
     </div>
 
