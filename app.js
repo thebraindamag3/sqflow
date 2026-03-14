@@ -1334,7 +1334,9 @@ async function fetchYahooCandles(urls, key) {
     errors.push(err.message);
   }
 
-  // Strategy 2: Direct Yahoo Finance via CORS proxy (works on GitHub Pages)
+  // Strategy 2: Direct Yahoo Finance via CORS proxies (works on GitHub Pages).
+  // Proxies are raced in parallel so the fastest response wins, avoiding the
+  // latency cost of sequential retries.
   // M-01 SECURITY NOTE: These are free, unverified public CORS proxies. They can
   // observe all market data queries (symbols, timeframes) and could theoretically
   // serve manipulated candle data. They are used here as a fallback when the local
@@ -1346,21 +1348,37 @@ async function fetchYahooCandles(urls, key) {
     (u) => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
   ];
 
-  for (const makeProxy of corsProxies) {
-    try {
-      const proxiedUrl = makeProxy(urls.directUrl);
-      const res = await fetch(proxiedUrl);
-      if (!res.ok) throw new Error(`CORS proxy HTTP ${res.status}`);
-      const text = await res.text();
-      if (looksLikeHtml(text)) throw new Error('CORS proxy returned HTML');
-      let candles = parseYahooChartResponse(text, key);
-      if (urls.needs4h) candles = aggregate4hClient(candles);
-      if (candles.length < 50) throw new Error(`Insufficient data (${candles.length} candles)`);
-      return candles;
-    } catch (err) {
-      console.warn(`[fetchYahoo] CORS proxy failed for ${key}:`, err.message);
-      errors.push(err.message);
-    }
+  const PROXY_TIMEOUT_MS = 10000;
+
+  const proxyAttempts = corsProxies.map(makeProxy => new Promise((resolve, reject) => {
+    const proxiedUrl = makeProxy(urls.directUrl);
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), PROXY_TIMEOUT_MS);
+    fetch(proxiedUrl, { signal: controller.signal })
+      .then(res => {
+        clearTimeout(tid);
+        if (!res.ok) throw new Error(`CORS proxy HTTP ${res.status}`);
+        return res.text();
+      })
+      .then(text => {
+        if (looksLikeHtml(text)) throw new Error('CORS proxy returned HTML');
+        let candles = parseYahooChartResponse(text, key);
+        if (urls.needs4h) candles = aggregate4hClient(candles);
+        if (candles.length < 50) throw new Error(`Insufficient data (${candles.length} candles)`);
+        resolve(candles);
+      })
+      .catch(err => {
+        clearTimeout(tid);
+        console.warn(`[fetchYahoo] CORS proxy failed for ${key}:`, err.message);
+        errors.push(err.message);
+        reject(err);
+      });
+  }));
+
+  try {
+    return await Promise.any(proxyAttempts);
+  } catch {
+    // All proxies failed — errors already logged above
   }
 
   throw new Error(`Market data unavailable for ${key}. Please try again later.`);
@@ -1677,6 +1695,11 @@ function switchTab(tab) {
   el('panel-dashboard').style.display    = tab === 'dashboard'    ? '' : 'none';
   el('panel-activetrades').style.display = tab === 'activetrades' ? '' : 'none';
   el('panel-history').style.display      = tab === 'history'      ? '' : 'none';
+
+  // Hide asset selector on non-dashboard tabs — prevents confusing pair-switch
+  // flicker in Active Trades and History where the selected pair is irrelevant.
+  const assetWrap = document.querySelector('.asset-selector-wrap');
+  if (assetWrap) assetWrap.style.display = tab === 'dashboard' ? '' : 'none';
 }
 
 // ============================================================
@@ -1706,6 +1729,29 @@ async function run() {
   // Update asset label
   const labelEl = el('asset-label');
   if (labelEl) labelEl.textContent = state.currentAsset;
+
+  // If market is closed, skip the fetch entirely and show a clear closed state.
+  if (!marketOpen) {
+    const schedule = getMarketScheduleLabel(state.currentAsset);
+    const signalCard = el('signal-card');
+    if (signalCard) {
+      signalCard.className = 'signal-card state-wait';
+      signalCard.innerHTML = `
+        <div class="market-closed-state" role="status" aria-live="polite">
+          <div class="market-closed-icon" aria-hidden="true">🔴</div>
+          <div class="market-closed-title">Market Closed</div>
+          <div class="market-closed-schedule">${escHtml(schedule)}</div>
+        </div>
+      `;
+    }
+    const priceEl = el('asset-price');
+    if (priceEl) priceEl.textContent = '—';
+    const changeEl = el('asset-change');
+    if (changeEl) changeEl.textContent = '';
+    btn.disabled    = false;
+    btn.textContent = '↻ Refresh Now';
+    return;
+  }
 
   try {
     const candles = await fetchCandles();
