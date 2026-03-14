@@ -1579,10 +1579,12 @@ function updateUI(r, capital) {
     el('enter-trade-wrap').style.display = 'none';
   }
 
-  // Refresh monitors for trades on the current timeframe
+  // Refresh monitors only for trades on the current timeframe AND current asset.
+  // Filtering by asset prevents cross-asset price contamination: trade cards for
+  // other assets must not be updated with candles fetched for a different symbol.
   if (state.activeTrades.length > 0 && state.lastCandles) {
     state.activeTrades
-      .filter(t => t.timeframe === state.currentTimeframe)
+      .filter(t => t.timeframe === state.currentTimeframe && t.asset === state.currentAsset)
       .forEach(trade => {
         const exit = analyzeExitSignals(state.lastCandles, trade);
         updateTradeCard(trade.id, exit);
@@ -1700,6 +1702,11 @@ function switchTab(tab) {
   // flicker in Active Trades and History where the selected pair is irrelevant.
   const assetWrap = document.querySelector('.asset-selector-wrap');
   if (assetWrap) assetWrap.style.display = tab === 'dashboard' ? '' : 'none';
+
+  // Hide the global price block (top-right price + change%) on non-dashboard tabs.
+  // It shows the selected pair's price which is meaningless on Active Trades / History.
+  const priceBlock = document.querySelector('.asset-price-block');
+  if (priceBlock) priceBlock.style.display = tab === 'dashboard' ? '' : 'none';
 }
 
 // ============================================================
