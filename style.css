@@ -2210,7 +2210,9 @@ html, body {
    ============================================================ */
 .about-main {
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-lg);
   padding: var(--space-xl) var(--space-md);
 }
 
@@ -2294,4 +2296,128 @@ html, body {
 .about-github-btn:hover {
   background: #2563eb;
   transform: translateY(-1px);
+}
+
+/* Support card */
+.about-support-card {
+  text-align: left;
+  align-items: stretch;
+  animation: cardFadeIn var(--transition-slow) 0.1s both;
+}
+
+.about-support-title {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 var(--space-sm);
+}
+
+.about-support-desc {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  line-height: var(--leading-relaxed);
+  margin: 0;
+}
+
+.about-wallets {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  margin-top: var(--space-md);
+}
+
+.about-wallet-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.about-wallet-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.about-wallet-name {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.about-wallet-network-badge {
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  color: var(--accent);
+  background: var(--accent-dim);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: var(--radius-pill);
+  padding: 1px 8px;
+  line-height: 1.6;
+}
+
+.about-wallet-addr-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-sm) var(--space-md);
+}
+
+.about-wallet-addr {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  word-break: break-all;
+  line-height: var(--leading-normal);
+  user-select: all;
+}
+
+.about-copy-btn {
+  flex-shrink: 0;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-family: var(--font);
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast), background var(--transition-fast);
+  min-width: 52px;
+  text-align: center;
+}
+
+.about-copy-btn:hover,
+.about-copy-btn:focus-visible {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-dim);
+  outline: none;
+}
+
+.about-copy-btn.copied {
+  color: var(--success);
+  border-color: var(--long-border);
+  background: var(--long-dim);
+}
+
+.about-wallet-notice {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin-top: var(--space-sm);
+  line-height: var(--leading-normal);
+}
+
+@media (max-width: 480px) {
+  .about-wallet-addr-wrap {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .about-copy-btn {
+    align-self: flex-end;
+  }
 }
