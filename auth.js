@@ -188,6 +188,7 @@ const Auth = (() => {
       // refresh token is managed securely by the Firebase SDK.
       _auth.onAuthStateChanged(async user => {
         const wasGuest = _guest && !_user;
+        const prevUser = _user;  // capture before update to detect explicit logouts
         _user  = user;
         _guest = !user;
         _ready = true;
@@ -199,6 +200,15 @@ const Auth = (() => {
 
         if (user) {
           await _syncFromCloud();
+        } else if (prevUser !== null) {
+          // Explicit logout (prevUser was a real user, not initial page load).
+          // Clear cached trade data so it never bleeds into the next user's session.
+          localStorage.removeItem('sqFlow_activeTrades');
+          localStorage.removeItem('sqFlow_tradeHistory');
+          if (typeof state !== 'undefined') state.activeTrades = [];
+          if (typeof stopTradeMonitor   === 'function') stopTradeMonitor();
+          if (typeof renderTradeMonitors === 'function') renderTradeMonitors();
+          if (typeof renderTradeHistory  === 'function') renderTradeHistory();
         }
 
         _renderHeaderUser(user);
@@ -244,12 +254,9 @@ const Auth = (() => {
         _db.collection('users').doc(uid).collection('state').doc('tradeHistory').get(),
       ]);
 
-      if (tradesDoc.exists) {
-        localStorage.setItem('sqFlow_activeTrades', JSON.stringify(tradesDoc.data().trades || []));
-      }
-      if (histDoc.exists) {
-        localStorage.setItem('sqFlow_tradeHistory', JSON.stringify(histDoc.data().history || []));
-      }
+      // Always overwrite localStorage so a new user never sees a previous user's data.
+      localStorage.setItem('sqFlow_activeTrades', JSON.stringify(tradesDoc.exists ? (tradesDoc.data().trades || []) : []));
+      localStorage.setItem('sqFlow_tradeHistory', JSON.stringify(histDoc.exists  ? (histDoc.data().history  || []) : []));
 
       // Reload app data from updated localStorage
       if (typeof loadTrades         === 'function') loadTrades();
