@@ -57,6 +57,61 @@ function escHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
+// ── Custom confirmation modal ──────────────────────────────────
+// Replaces native browser confirm() with a styled in-app dialog.
+// Defined in auth.js (loads first) so both auth.js and app.js can use it.
+//
+// Usage:
+//   showConfirmModal({
+//     title:        'Log out',
+//     message:      'Are you sure you want to sign out of SqFlow?',
+//     confirmLabel: 'Sign out',   // optional, defaults to 'Confirm'
+//     danger:       false,        // optional, styles confirm btn as destructive
+//     onConfirm:    () => { ... } // called when user clicks confirm
+//   });
+function showConfirmModal({ title, message, confirmLabel = 'Confirm', danger = false, onConfirm }) {
+  const overlay = document.createElement('div');
+  overlay.className = 'confirm-modal-overlay';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-labelledby', 'confirm-modal-title');
+
+  overlay.innerHTML = `
+    <div class="confirm-modal">
+      <div class="confirm-modal-title" id="confirm-modal-title">${escHtml(title)}</div>
+      <p class="confirm-modal-message">${escHtml(message)}</p>
+      <div class="confirm-modal-actions">
+        <button class="confirm-modal-cancel" type="button">Cancel</button>
+        <button class="confirm-modal-confirm${danger ? ' danger' : ''}" type="button">${escHtml(confirmLabel)}</button>
+      </div>
+    </div>
+  `;
+
+  function close() {
+    overlay.remove();
+    document.removeEventListener('keydown', onKey);
+  }
+
+  function onKey(e) {
+    if (e.key === 'Escape') close();
+  }
+
+  overlay.querySelector('.confirm-modal-cancel').addEventListener('click', close);
+  overlay.querySelector('.confirm-modal-confirm').addEventListener('click', () => {
+    close();
+    onConfirm();
+  });
+  // Clicking the backdrop (overlay itself, not the dialog) closes the modal.
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) close();
+  });
+
+  document.addEventListener('keydown', onKey);
+  document.body.appendChild(overlay);
+  // Focus the cancel button by default for safety.
+  overlay.querySelector('.confirm-modal-cancel').focus();
+}
+
 // ── Firebase project configuration ───────────────────────────
 // Set window.SQFLOW_FIREBASE_CONFIG before this script loads to enable
 // Google OAuth and email/password sign-in. Without it, the app runs in
@@ -711,7 +766,12 @@ const Auth = (() => {
     `;
     wrap.style.display = 'flex';
     document.getElementById('signout-btn').addEventListener('click', () => {
-      if (confirm('Sign out of SqFlow?')) signOut();
+      showConfirmModal({
+        title:        'Log out',
+        message:      'Are you sure you want to sign out of SqFlow?',
+        confirmLabel: 'Sign out',
+        onConfirm:    signOut,
+      });
     });
   }
 

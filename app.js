@@ -1151,13 +1151,20 @@ function getTradeHistory() {
 }
 
 function clearTradeHistory() {
-  if (!confirm('Delete all trade history? This cannot be undone.')) return;
-  localStorage.removeItem(STORAGE_KEYS.HISTORY);
-  // Delete all history docs from Firestore subcollection.
-  if (typeof Auth !== 'undefined' && !Auth.isGuest()) {
-    Auth.clearAllHistory().catch(e => console.warn('[clearHistory Firestore]', e));
-  }
-  renderTradeHistory();
+  showConfirmModal({
+    title:        'Clear trade history',
+    message:      'This will permanently remove all trade history from this device.',
+    confirmLabel: 'Clear history',
+    danger:       true,
+    onConfirm() {
+      localStorage.removeItem(STORAGE_KEYS.HISTORY);
+      // Delete all history docs from Firestore subcollection.
+      if (typeof Auth !== 'undefined' && !Auth.isGuest()) {
+        Auth.clearAllHistory().catch(e => console.warn('[clearHistory Firestore]', e));
+      }
+      renderTradeHistory();
+    },
+  });
 }
 
 function formatDuration(ms) {
