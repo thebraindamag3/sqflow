@@ -2204,3 +2204,94 @@ html, body {
   .strategy-info-grid { grid-template-columns: 1fr; }
   .strategy-intro-header { flex-direction: column; gap: var(--space-sm); }
 }
+
+/* ============================================================
+   ABOUT PAGE
+   ============================================================ */
+.about-main {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-xl) var(--space-md);
+}
+
+.about-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  max-width: 480px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+  text-align: center;
+}
+
+.about-avatar-wrap a {
+  display: inline-block;
+  border-radius: 50%;
+  overflow: hidden;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.about-avatar-wrap a:hover {
+  box-shadow: 0 0 0 3px var(--accent);
+  transform: scale(1.04);
+}
+
+.about-avatar {
+  display: block;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--border-light);
+}
+
+.about-username {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.about-username-link {
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.about-username-link:hover {
+  color: var(--accent);
+}
+
+.about-bio {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  border-left: 3px solid var(--accent);
+  padding: var(--space-sm) var(--space-md);
+  margin: 0;
+  text-align: left;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: var(--accent-dim);
+  font-style: italic;
+  line-height: 1.6;
+}
+
+.about-github-btn {
+  display: inline-block;
+  padding: 0.6rem 1.4rem;
+  background: var(--accent);
+  color: #fff;
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: background 0.2s ease, transform 0.15s ease;
+}
+
+.about-github-btn:hover {
+  background: #2563eb;
+  transform: translateY(-1px);
+}
