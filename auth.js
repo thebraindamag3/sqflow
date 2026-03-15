@@ -110,6 +110,9 @@ function _sanitizeError(code) {
     'auth/user-disabled':                            'This account has been disabled. Please contact support.',
     'auth/requires-recent-login':                    'Please sign out and sign back in to continue.',
     'auth/credential-already-in-use':                'This credential is already associated with another account.',
+    // Newer Firebase SDK aliases — same semantics, different code string
+    'auth/invalid-login-credentials':                'Incorrect email or password.',
+    'auth/email-already-exists':                     'Unable to create account. Try a different email or sign in instead.',
   };
   if (!MAP[code]) {
     // Log unmapped codes so they can be diagnosed and added to the map
@@ -350,8 +353,13 @@ const Auth = (() => {
       _recordAttempt(true);
       return result;
     } catch (e) {
-      _recordAttempt(false);
-      throw new Error(_sanitizeError(e.code));
+      // Duplicate email is not a brute-force attempt — don't count it against the rate limiter.
+      const isDuplicate = e.code === 'auth/email-already-in-use' || e.code === 'auth/email-already-exists';
+      if (!isDuplicate) _recordAttempt(false);
+      // Preserve the Firebase error code so the UI layer can react to specific cases.
+      const err = new Error(_sanitizeError(e.code));
+      err.firebaseCode = e.code;
+      throw err;
     }
   }
 
@@ -614,6 +622,17 @@ const Auth = (() => {
             _setSuccess('Account created! Signing you in…');
           }
         } catch (e) {
+          // Duplicate email on register: auto-switch to sign-in and pre-fill email.
+          const isDuplicate = e.firebaseCode === 'auth/email-already-in-use' ||
+                              e.firebaseCode === 'auth/email-already-exists';
+          if (_mode === 'register' && isDuplicate) {
+            _mode = 'signin';
+            _rebuildModal();
+            const emailInput = document.getElementById('auth-email');
+            if (emailInput) emailInput.value = email;
+            _setError('This email is already registered. Please sign in instead.');
+            return;
+          }
           _setError(e.message);
           _setLoading('auth-submit', false);
         }
