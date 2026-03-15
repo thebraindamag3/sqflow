@@ -300,7 +300,16 @@ const Auth = (() => {
         }
       }
     } catch (e) {
-      console.error('[SqFlow Auth] Cloud sync failed:', e);
+      if (e.code === 'permission-denied') {
+        console.error(
+          '[SqFlow Auth] Firestore permission denied on sync. ' +
+          'Go to Firebase Console → Firestore Database → Rules and deploy the rules from firestore.rules ' +
+          '(or run: firebase deploy --only firestore:rules). ' +
+          'Falling back to localStorage for this session.'
+        );
+      } else {
+        console.error('[SqFlow Auth] Cloud sync failed:', e);
+      }
       // On error, keep localStorage if it belongs to this user; clear it otherwise.
       if (storedUid !== uid) {
         localStorage.setItem('sqFlow_activeTrades', JSON.stringify([]));
@@ -310,6 +319,11 @@ const Auth = (() => {
 
     // Tag localStorage so returning logins can detect same-user data.
     localStorage.setItem(_AUTH_KEYS.USER_ID, uid);
+
+    // Ensure the schema version is set so that loadTrades() does not run the
+    // v1→v2 migration and accidentally wipe the data we just restored from
+    // Firestore (migration runs whenever sqFlow_schemaVersion is not '2').
+    localStorage.setItem('sqFlow_schemaVersion', '2');
 
     // Reload app data from updated localStorage
     if (typeof loadTrades          === 'function') loadTrades();
@@ -457,7 +471,14 @@ const Auth = (() => {
                .collection('state').doc('activeTrades')
                .set({ trades, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
       return true;
-    } catch (e) { console.error('[SqFlow Auth] saveActiveTrades:', e); return false; }
+    } catch (e) {
+      if (e.code === 'permission-denied') {
+        console.error('[SqFlow Auth] saveActiveTrades: Firestore permission denied. Deploy firestore.rules — trades saved to localStorage only.');
+      } else {
+        console.error('[SqFlow Auth] saveActiveTrades:', e);
+      }
+      return false;
+    }
   }
 
   async function saveTradeHistory(history) {
@@ -467,7 +488,14 @@ const Auth = (() => {
                .collection('state').doc('tradeHistory')
                .set({ history, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
       return true;
-    } catch (e) { console.error('[SqFlow Auth] saveTradeHistory:', e); return false; }
+    } catch (e) {
+      if (e.code === 'permission-denied') {
+        console.error('[SqFlow Auth] saveTradeHistory: Firestore permission denied. Deploy firestore.rules — history saved to localStorage only.');
+      } else {
+        console.error('[SqFlow Auth] saveTradeHistory:', e);
+      }
+      return false;
+    }
   }
 
   // ── Header user block ───────────────────────────────────────

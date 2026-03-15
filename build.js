@@ -49,7 +49,7 @@ const firebaseConfig = {
 const hasFirebaseConfig = firebaseConfig.apiKey && firebaseConfig.apiKey !== 'your_api_key_here';
 
 // ── Copy static assets into dist/ ────────────────────────────
-const staticFiles = ['index.html', 'app.js', 'auth.js', 'auth.css', 'style.css'];
+const staticFiles = ['index.html', 'app.js', 'auth.js', 'auth.css', 'style.css', 'firebase.json', 'firestore.rules'];
 for (const file of staticFiles) {
   const src = path.join(__dirname, file);
   if (!fs.existsSync(src)) continue;
