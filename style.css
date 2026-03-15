@@ -1680,98 +1680,400 @@ html, body {
 
 /* ============================================================
    RESPONSIVE  (Priority 5)
-   Breakpoints: 375px, 768px, 1024px, 1440px
+   Breakpoints:
+     ≤ 480px   — small mobile
+     ≤ 767px   — mobile
+     768–1023px — tablet / compact desktop
+     ≥ 1024px  — desktop
+     ≥ 1440px  — large desktop
    ============================================================ */
 
-/* Small phones (375px) */
-@media (max-width: 480px) {
+/* ── Mobile (≤ 767px) ──────────────────────────────────────── */
+@media (max-width: 767px) {
+  /* App container: tighter side padding on mobile */
   .app {
-    padding: 0 var(--space-sm) var(--space-lg);
+    padding: 0 var(--space-md) var(--space-xl);
   }
 
+  /* ── HEADER ─────────────────────────────────────────────── */
+  /*
+   * Use display:contents on header-left / header-right so their
+   * children (logo, header-meta, #header-user, header-trading)
+   * become direct grid children of .header, enabling precise
+   * grid placement without changing the HTML.
+   */
   .header {
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto auto;
+    row-gap: var(--space-sm);
+    column-gap: var(--space-sm);
+    padding: var(--space-md) 0 var(--space-sm);
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 0;
+    align-items: center;
+  }
+
+  /* Dissolve wrappers so children participate in header's grid */
+  .header-left  { display: contents; }
+  .header-right { display: contents; }
+
+  /* Row 1 col 1: Logo */
+  .logo {
+    grid-column: 1;
+    grid-row: 1;
+    font-size: var(--text-lg);
+  }
+
+  /* Row 1 col 2: User block (avatar + sign-out) */
+  /* Note: display is controlled by auth.js — only add grid placement */
+  #header-user {
+    grid-column: 2;
+    grid-row: 1;
+    align-items: center;
+    gap: var(--space-xs);
+    margin-left: 0;
+  }
+
+  /* Row 2: Strategy tag + tf-selector (full width) */
+  .header-meta {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+    padding-left: 0;
+    border-left: none;
+  }
+
+  /* Row 3: Trading data (asset selector + price block) */
+  .header-trading {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    flex-wrap: wrap;
+    padding-left: 0;
+    border-left: none;
+  }
+
+  /* Reset desktop separator (now irrelevant when display:contents) */
+  #header-user:not(:empty) + .header-trading {
+    padding-left: 0;
+    border-left: none;
+  }
+
+  /* Asset price: slightly smaller on mobile */
+  .asset-price {
+    font-size: 22px;
+  }
+
+  /* Asset price block: left-align on mobile */
+  .asset-price-block {
     align-items: flex-start;
+  }
+
+  /* Asset selector dropdown: expand width on mobile */
+  .asset-selector-dropdown {
+    width: min(320px, calc(100vw - 2 * var(--space-md)));
+    right: auto;
+    left: 0;
+  }
+
+  /* ── TAB NAVIGATION ─────────────────────────────────────── */
+  /*
+   * Tabs scroll horizontally instead of compressing labels.
+   * Sticky so they stay accessible while scrolling content.
+   */
+  .tab-nav {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;        /* Firefox */
+    -ms-overflow-style: none;     /* IE / Edge */
+    margin-bottom: var(--space-md);
+    /* Sticky below header */
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: var(--bg-base);
+    padding-top: 2px;
+  }
+  .tab-nav::-webkit-scrollbar { display: none; } /* Webkit */
+
+  .tab-nav-btn {
+    flex-shrink: 0;             /* prevent tab labels from compressing */
+    scroll-snap-align: start;
+    padding: 12px 16px;
+    font-size: var(--text-xs);
+    white-space: nowrap;
+  }
+
+  /* ── DASHBOARD — SIGNAL CARD ────────────────────────────── */
+  .signal-card,
+  .trade-section,
+  .conditions-section,
+  .indicators-section,
+  .refresh-section {
+    padding: var(--space-md);
+  }
+
+  /* Signal top: stack badge and strength vertically */
+  .signal-top {
+    flex-direction: column;
     gap: var(--space-md);
   }
 
-  .header-right {
+  /* Badge: full width, vertically centered text */
+  .signal-badge {
     width: 100%;
+    font-size: var(--text-xl);
+    padding: 12px var(--space-lg);
+    justify-content: center;
+    min-width: unset;
   }
 
-  .signal-top {
-    flex-direction: column;
-  }
-
+  /* Strength block: align left on mobile */
   .signal-strength-block {
     align-items: flex-start;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--space-md);
   }
 
-  .signal-badge {
-    font-size: var(--text-xl);
-    padding: 10px var(--space-lg);
+  /* Enter trade button: full width on mobile for easy tap */
+  .enter-trade-btn {
+    width: 100%;
+    justify-content: center;
   }
 
-  .asset-price {
-    font-size: 20px;
+  /* Enter trade wrap: stack button and note vertically */
+  .enter-trade-wrap {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-sm);
   }
 
-  .params-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .indicators-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .history-row-top {
+  /* ── DASHBOARD — CAPITAL / PARAMS ───────────────────────── */
+  /* Capital row: stack label and note */
+  .capital-row {
     flex-direction: column;
     align-items: flex-start;
     gap: var(--space-sm);
   }
 
-  .history-pnl-wrap {
-    flex-direction: row;
+  /* Params grid: 2-column on mobile */
+  .params-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
 
-  .footer-meta {
-    flex-direction: column;
-    gap: var(--space-xs);
-  }
-
-  .tab-nav-btn {
-    padding: 12px 14px;
-    font-size: 12px;
-  }
-
-  .asset-selector-dropdown {
-    width: 280px;
-    right: -40px;
-  }
-
+  /* Section header: stack title and badge */
   .section-header {
     flex-direction: column;
     align-items: flex-start;
     gap: var(--space-sm);
   }
 
-  .history-header-right {
+  /* ── DASHBOARD — INDICATORS ─────────────────────────────── */
+  /* Indicators: 2-column grid */
+  .indicators-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* ── DASHBOARD — REFRESH SECTION ───────────────────────── */
+  .refresh-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-sm);
+  }
+
+  .refresh-times {
+    flex-direction: column;
+    gap: var(--space-xs);
+  }
+
+  .refresh-btn {
     width: 100%;
+    text-align: center;
+  }
+
+  /* ── ACTIVE TRADES ──────────────────────────────────────── */
+  /* Monitor header: stack left content and close button */
+  .monitor-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-sm);
+  }
+
+  /* Close button: full width for easy thumb reach */
+  .close-trade-btn {
+    width: 100%;
+    text-align: center;
+  }
+
+  /* P&L row: stack P&L block and metrics vertically */
+  .monitor-pnl-row {
+    flex-direction: column;
+    gap: var(--space-md);
+  }
+
+  /* P&L value: prominently large on mobile */
+  .monitor-pnl-value {
+    font-size: calc(var(--text-3xl) * 1.1);
+  }
+
+  /* Metrics block: 2-col grid layout */
+  .monitor-entry-block {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-xs) var(--space-md);
+    min-width: unset;
+    width: 100%;
+  }
+
+  /* Exit status bar: allow text to wrap cleanly */
+  .exit-status-bar {
     flex-wrap: wrap;
   }
 
+  /* ── HISTORY ────────────────────────────────────────────── */
+  .history-section {
+    padding: var(--space-md);
+  }
+
+  /* History header: stack title and actions */
+  .history-header-right {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: var(--space-sm);
+  }
+
+  /* Export and clear buttons: grow to fill row */
+  .export-history-btn,
+  .clear-history-btn {
+    flex: 1;
+    text-align: center;
+    min-height: 44px;
+  }
+
+  /* History row top: keep P&L on same row as direction */
+  .history-row-top {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: var(--space-xs) var(--space-sm);
+  }
+
+  /* History prices row: wrap cleanly */
+  .history-row-prices {
+    flex-wrap: wrap;
+    gap: var(--space-xs) var(--space-sm);
+  }
+
+  /* History times: wrap on narrow */
+  .history-row-times {
+    flex-wrap: wrap;
+  }
+
+  /* ── STRATEGY ───────────────────────────────────────────── */
+  /* Intro header: stack title and version badge */
+  .strategy-intro-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-sm);
+  }
+
+  /* Pillars: ensure they wrap well on mobile */
+  .strategy-pillars {
+    flex-wrap: wrap;
+  }
+
+  /* ── ABOUT ──────────────────────────────────────────────── */
+  /* GitHub button: full width */
+  .about-github-btn {
+    display: block;
+    text-align: center;
+  }
+
+  /* ── FOOTER ─────────────────────────────────────────────── */
+  .footer-meta {
+    flex-direction: column;
+    gap: var(--space-xs);
+    text-align: center;
+  }
+
+  /* ── CONFIRM MODAL ──────────────────────────────────────── */
+  .confirm-modal {
+    padding: var(--space-lg);
+  }
+
+  /* Modal actions: full-width buttons stacked */
+  .confirm-modal-actions {
+    flex-direction: column-reverse;
+    gap: var(--space-sm);
+  }
+
+  .confirm-modal-cancel,
+  .confirm-modal-confirm {
+    width: 100%;
+    min-height: 44px;
+    text-align: center;
+  }
+}
+
+/* ── Small mobile (≤ 480px) ────────────────────────────────── */
+@media (max-width: 480px) {
+  .app {
+    padding: 0 var(--space-sm) var(--space-lg);
+  }
+
+  /* Even smaller price font */
+  .asset-price {
+    font-size: 20px;
+  }
+
+  /* Tab labels: slightly smaller */
+  .tab-nav-btn {
+    padding: 12px 14px;
+  }
+
+  /* Signal badge: tighter */
+  .signal-badge {
+    font-size: var(--text-lg);
+    padding: 10px var(--space-md);
+  }
+
+  /* All main section cards: tighter padding */
   .signal-card,
   .trade-section,
   .conditions-section,
   .indicators-section,
   .refresh-section,
-  .history-section {
-    padding: var(--space-md);
+  .history-section,
+  .trade-monitor {
+    padding: var(--space-sm) var(--space-md);
+  }
+
+  /* Wallet address rows: stack on very narrow */
+  .about-wallet-addr-wrap {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .about-copy-btn {
+    align-self: flex-end;
+    min-height: 36px;
   }
 }
 
-/* Tablets (768px) */
-@media (min-width: 481px) and (max-width: 768px) {
+/* ── Tablet / compact desktop (768px–1023px) ───────────────── */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .app {
+    padding: 0 var(--space-lg) var(--space-2xl);
+  }
+
   .params-grid {
     grid-template-columns: repeat(3, 1fr);
   }
@@ -1779,9 +2081,14 @@ html, body {
   .indicators-grid {
     grid-template-columns: repeat(3, 1fr);
   }
+
+  /* Header: keep as flex row but reduce gaps */
+  .header {
+    gap: var(--space-sm);
+  }
 }
 
-/* Desktop (1024px+) */
+/* ── Desktop (≥ 1024px) ────────────────────────────────────── */
 @media (min-width: 1024px) {
   .app {
     max-width: 960px;
@@ -1796,7 +2103,7 @@ html, body {
   }
 }
 
-/* Large desktop (1440px+) */
+/* ── Large desktop (≥ 1440px) ──────────────────────────────── */
 @media (min-width: 1440px) {
   .app {
     max-width: 1080px;
