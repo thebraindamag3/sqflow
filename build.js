@@ -48,19 +48,32 @@ const firebaseConfig = {
 
 const hasFirebaseConfig = firebaseConfig.apiKey && firebaseConfig.apiKey !== 'your_api_key_here';
 
+// ── Read Twelve Data API key from environment variable ────────
+// Injected into index.html as window.SQFLOW_TWELVEDATA_KEY so app.js can read it.
+// If absent, Twelve Data is skipped and Yahoo Finance fallback is used.
+const twelvedataKey = process.env.VITE_TWELVEDATA_API_KEY || '';
+
 // ── Copy static assets into dist/ ────────────────────────────
 const staticFiles = ['index.html', 'app.js', 'auth.js', 'auth.css', 'style.css', 'firebase.json', 'firestore.rules'];
 for (const file of staticFiles) {
   const src = path.join(__dirname, file);
   if (!fs.existsSync(src)) continue;
 
-  if (file === 'index.html' && hasFirebaseConfig) {
-    // Inject window.SQFLOW_FIREBASE_CONFIG before auth.js loads
+  if (file === 'index.html') {
     let html = fs.readFileSync(src, 'utf8');
-    const configScript = `  <script>window.SQFLOW_FIREBASE_CONFIG = ${JSON.stringify(firebaseConfig)};</script>\n`;
-    html = html.replace('  <!-- Auth module must load before app.js', `${configScript}  <!-- Auth module must load before app.js`);
+    // Inject window.SQFLOW_FIREBASE_CONFIG before auth.js loads
+    if (hasFirebaseConfig) {
+      const configScript = `  <script>window.SQFLOW_FIREBASE_CONFIG = ${JSON.stringify(firebaseConfig)};</script>\n`;
+      html = html.replace('  <!-- Auth module must load before app.js', `${configScript}  <!-- Auth module must load before app.js`);
+      console.log('[build] Firebase config injected into index.html');
+    }
+    // Inject window.SQFLOW_TWELVEDATA_KEY for the direct Twelve Data frontend fetch
+    if (twelvedataKey) {
+      const tdScript = `  <script>window.SQFLOW_TWELVEDATA_KEY = ${JSON.stringify(twelvedataKey)};</script>\n`;
+      html = html.replace('  <!-- Auth module must load before app.js', `${tdScript}  <!-- Auth module must load before app.js`);
+      console.log('[build] Twelve Data key injected into index.html');
+    }
     fs.writeFileSync(path.join(distDir, file), html);
-    console.log('[build] Firebase config injected into index.html');
   } else {
     fs.copyFileSync(src, path.join(distDir, file));
   }

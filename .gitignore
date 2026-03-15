@@ -1,3 +1,7 @@
+# dist/ is generated at build time (node build.js) — never commit it.
+# It is uploaded as a GitHub Pages artifact in the deploy workflow.
+dist/
+
 # version.json is generated at build time (node build.js) — never commit it.
 # It contains a fresh UTC timestamp + git SHA stamped on every deploy.
 version.json
