@@ -10,11 +10,8 @@ const APP_VERSION = 'v1.4.0';
 const SCHEMA_VERSION = '2';
 
 // ── Storage keys ─────────────────────────────────────────────
-const STORAGE_KEYS = {
-  ACTIVE_TRADES: 'sqFlow_activeTrades',  // v2: array of trades
-  HISTORY:       'sqFlow_tradeHistory',
-  SCHEMA:        'sqFlow_schemaVersion',
-};
+// Defined in auth.js (which loads first) as a shared global.
+// Reference: auth.js top-of-file STORAGE_KEYS constant.
 
 // ── Strategy constants (Jaime Merino) ────────────────────────
 const STRATEGY = {
@@ -756,6 +753,7 @@ function enterTrade() {
     leverage:   state.lastResult.leverage,
     tradeSize:  state.lastResult.tradeSize,
     stopLoss:   state.lastResult.stopLoss,
+    takeProfit: state.lastResult.takeProfit,  // stored alongside stopLoss for consistency
     timeframe:  state.currentTimeframe,
   };
 
@@ -775,24 +773,25 @@ function enterTrade() {
   }
 }
 
+// Resolve the best available exit price for a trade.
+// Uses the per-asset candle cache so the exit price is always for THIS trade's
+// instrument, even when the user is currently viewing a different asset.
+function resolveExitPrice(trade, explicitPrice) {
+  if (explicitPrice != null) return explicitPrice;
+  const key    = `${trade.asset || 'BTC/USD'}|${trade.timeframe || state.currentTimeframe}`;
+  const cached = candleCache[key];
+  if (cached && cached.length > 0) return cached[cached.length - 1].close;
+  // Same-asset fallback
+  if (state.lastCandles && state.lastCandles.length > 0) return state.lastCandles[state.lastCandles.length - 1].close;
+  return trade.entryPrice;
+}
+
 function closeTrade(tradeId, exitPrice, reason) {
   const idx = state.activeTrades.findIndex(t => t.id === tradeId);
   if (idx === -1) return;
 
   const trade = state.activeTrades[idx];
-
-  // Use the per-asset candle cache so the exit price is always for THIS trade's
-  // instrument, even when the user is currently viewing a different asset.
-  const ep = exitPrice != null
-    ? exitPrice
-    : (() => {
-        const key = `${trade.asset || 'BTC/USD'}|${trade.timeframe || state.currentTimeframe}`;
-        const cached = candleCache[key];
-        if (cached && cached.length > 0) return cached[cached.length - 1].close;
-        // Same-asset fallback
-        if (state.lastCandles && state.lastCandles.length > 0) return state.lastCandles[state.lastCandles.length - 1].close;
-        return trade.entryPrice;
-      })();
+  const ep    = resolveExitPrice(trade, exitPrice);
 
   saveTradeToHistory(trade, ep, reason || 'manual');
   state.activeTrades.splice(idx, 1);
@@ -1057,9 +1056,13 @@ function autoCloseIfNeeded(trade, exit) {
     return;
   }
 
-  const tpPrice = isLong
-    ? trade.entryPrice * (1 + STRATEGY.TP_PCT)
-    : trade.entryPrice * (1 - STRATEGY.TP_PCT);
+  // Use stored takeProfit when available (trades entered after this refactor);
+  // fall back to recalculating from strategy constants for legacy trades.
+  const tpPrice = trade.takeProfit != null
+    ? trade.takeProfit
+    : (isLong
+        ? trade.entryPrice * (1 + STRATEGY.TP_PCT)
+        : trade.entryPrice * (1 - STRATEGY.TP_PCT));
   const tpHit = isLong ? exit.current >= tpPrice : exit.current <= tpPrice;
 
   if (tpHit) {
@@ -1313,7 +1316,9 @@ async function fetchCandles(tf, assetKey) {
   }));
 }
 
-// Aggregate hourly candles into 4h candles (client-side, mirrors server.js logic)
+// Aggregate hourly candles into 4h candles (client-side).
+// Intentionally mirrors aggregate4h() in server.js — no shared module system exists
+// between Node.js (server.js) and the browser (app.js). Keep both in sync.
 function aggregate4hClient(candles) {
   if (!candles.length) return [];
   const result = [];
@@ -1363,17 +1368,8 @@ function looksLikeHtml(text) {
   return trimmed.startsWith('<!doctype') || trimmed.startsWith('<html');
 }
 
-// L-02 fix: HTML-encode a string before inserting it into innerHTML.
-// This prevents XSS even if the string originates from an untrusted source
-// (e.g. a manipulated CORS proxy response that injects HTML into the error message).
-function escHtml(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
+// escHtml() is defined as a global in auth.js (which loads before app.js).
+// L-02 fix: used below to HTML-encode error messages before innerHTML injection.
 
 async function fetchYahooCandles(urls, key) {
   const errors = [];
@@ -1472,6 +1468,18 @@ function el(id) { return document.getElementById(id); }
 // Show or hide the dashboard sections that are only meaningful when the market is open.
 // Sections: Trade Parameters (capital + params), Entry Conditions, Live Indicators,
 //           Next-candle countdown.  The Refresh button always stays visible.
+// Update the market-status badge in the header.
+// Called from both run() (before fetch) and updateUI() (after fetch).
+function updateMarketStatus() {
+  const marketOpen = isMarketOpen();
+  const statusEl   = el('market-status');
+  if (statusEl) {
+    statusEl.textContent = marketOpen ? 'Open' : 'Market Closed';
+    statusEl.className   = 'market-status ' + (marketOpen ? 'open' : 'closed');
+  }
+  return marketOpen;
+}
+
 function setMarketSectionsVisible(visible) {
   const d = visible ? '' : 'none';
   const tradeSection      = document.querySelector('.trade-section');
@@ -1600,17 +1608,7 @@ function updateUI(r, capital) {
   if (labelEl) labelEl.textContent = state.currentAsset;
 
   // Market status
-  const marketOpen = isMarketOpen();
-  const statusEl   = el('market-status');
-  if (statusEl) {
-    if (marketOpen) {
-      statusEl.textContent = 'Open';
-      statusEl.className   = 'market-status open';
-    } else {
-      statusEl.textContent = 'Market Closed';
-      statusEl.className   = 'market-status closed';
-    }
-  }
+  const marketOpen = updateMarketStatus();
 
   // Price
   const priceEl = el('asset-price');
@@ -1805,17 +1803,7 @@ async function run() {
   btn.textContent = '↻ Loading…';
 
   // Update market status badge
-  const marketOpen = isMarketOpen();
-  const statusEl   = el('market-status');
-  if (statusEl) {
-    if (marketOpen) {
-      statusEl.textContent = 'Open';
-      statusEl.className   = 'market-status open';
-    } else {
-      statusEl.textContent = 'Market Closed';
-      statusEl.className   = 'market-status closed';
-    }
-  }
+  const marketOpen = updateMarketStatus();
 
   // Update asset label
   const labelEl = el('asset-label');
