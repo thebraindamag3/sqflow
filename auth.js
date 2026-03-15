@@ -100,10 +100,21 @@ function _sanitizeError(code) {
     'auth/network-request-failed':                   'Network error. Check your connection and try again.',
     'auth/popup-closed-by-user':                     'Sign-in window closed. Please try again.',
     'auth/cancelled-popup-request':                  'Sign-in cancelled.',
-    'auth/popup-blocked':                            'Pop-up blocked. Please allow pop-ups for this site.',
+    'auth/popup-blocked':                            'Pop-up blocked by browser — trying redirect sign-in instead.',
     'auth/account-exists-with-different-credential': 'An account with this email exists using a different sign-in method.',
     'auth/operation-not-allowed':                    'This sign-in method is not currently enabled.',
+    'auth/unauthorized-domain':                      'This domain is not authorized for Google sign-in. Add it to Firebase Console → Authentication → Settings → Authorized domains.',
+    'auth/internal-error':                           'An internal error occurred during sign-in. Please try again.',
+    'auth/cors-unsupported':                         'Your browser does not support this sign-in method. Try a different browser.',
+    'auth/web-storage-unsupported':                  'Your browser does not support web storage. Enable cookies and try again.',
+    'auth/user-disabled':                            'This account has been disabled. Please contact support.',
+    'auth/requires-recent-login':                    'Please sign out and sign back in to continue.',
+    'auth/credential-already-in-use':                'This credential is already associated with another account.',
   };
+  if (!MAP[code]) {
+    // Log unmapped codes so they can be diagnosed and added to the map
+    console.warn('[SqFlow Auth] Unmapped Firebase error code:', code);
+  }
   return MAP[code] || 'Authentication failed. Please try again.';
 }
 
@@ -155,6 +166,20 @@ const Auth = (() => {
       _auth = firebase.auth();
       _db   = firebase.firestore();
 
+      // Check for a pending redirect result (from signInWithRedirect fallback).
+      // This must run before onAuthStateChanged so any redirect error can be
+      // surfaced in the modal once it opens.
+      let _pendingRedirectError = null;
+      try {
+        const redirectResult = await _auth.getRedirectResult();
+        if (redirectResult && redirectResult.user) {
+          console.log('[SqFlow Auth] Redirect sign-in completed for:', redirectResult.user.email);
+        }
+      } catch (redirectErr) {
+        console.error('[SqFlow Auth] Redirect sign-in error — code:', redirectErr.code, '| message:', redirectErr.message);
+        _pendingRedirectError = _sanitizeError(redirectErr.code);
+      }
+
       // Firebase handles JWT issuance, rotation, and httpOnly cookie storage
       // internally via its SDK. The access token is short-lived and the
       // refresh token is managed securely by the Firebase SDK.
@@ -177,8 +202,16 @@ const Auth = (() => {
         _renderGuestBanner(!user);
         _flush({ user, isGuest: !user, firebaseReady: true });
 
-        if (!user) _showAuthModal();
-        else       _hideAuthModal();
+        if (!user) {
+          _showAuthModal();
+          // Surface any redirect-flow error now that the modal is visible
+          if (_pendingRedirectError) {
+            _setError(_pendingRedirectError);
+            _pendingRedirectError = null;
+          }
+        } else {
+          _hideAuthModal();
+        }
       });
     } catch (e) {
       console.error('[SqFlow Auth] Firebase init error:', e);
@@ -274,8 +307,22 @@ const Auth = (() => {
     if (!_auth) throw new Error('Google sign-in is not yet configured. The Firebase project credentials need to be added to enable this provider.');
     const provider = new firebase.auth.GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
-    try { return await _auth.signInWithPopup(provider); }
-    catch (e) { throw new Error(_sanitizeError(e.code)); }
+    try {
+      return await _auth.signInWithPopup(provider);
+    } catch (e) {
+      console.error('[SqFlow Auth] Google sign-in error — code:', e.code, '| message:', e.message);
+      // If the popup was blocked, fall back to redirect-based sign-in
+      if (e.code === 'auth/popup-blocked') {
+        try {
+          await _auth.signInWithRedirect(provider);
+          return; // page will redirect; result handled in _init via getRedirectResult()
+        } catch (redirectErr) {
+          console.error('[SqFlow Auth] Redirect fallback error:', redirectErr.code, redirectErr.message);
+          throw new Error(_sanitizeError(redirectErr.code));
+        }
+      }
+      throw new Error(_sanitizeError(e.code));
+    }
   }
 
   async function signInWithEmail(email, password) {
