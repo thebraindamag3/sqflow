@@ -2059,6 +2059,21 @@ function onCapitalChange() {
 // ASSET SELECTOR
 // ============================================================
 
+// Canonical display order for asset groups in the selector.
+const SELECTOR_GROUP_ORDER = [
+  'Crypto',
+  'Futures — Indices',
+  'Futures — Commodities',
+  'FX Pairs',
+];
+
+// Returns true for assets that are visible but not yet available for trading.
+// To re-enable futures/FX: remove this function and its call sites.
+function isAssetComingSoon(assetKey) {
+  const asset = ASSETS[assetKey];
+  return asset ? asset.market !== 'crypto' : false;
+}
+
 function buildAssetSelector() {
   const container = el('asset-selector-dropdown');
   if (!container) return;
@@ -2071,7 +2086,14 @@ function buildAssetSelector() {
   }
 
   container.innerHTML = '';
-  for (const [category, assets] of Object.entries(groups)) {
+  // Render groups in canonical order; fall back to any extra categories at the end.
+  const orderedCategories = [
+    ...SELECTOR_GROUP_ORDER.filter(c => groups[c]),
+    ...Object.keys(groups).filter(c => !SELECTOR_GROUP_ORDER.includes(c)),
+  ];
+
+  orderedCategories.forEach(category => {
+    const assets = groups[category];
     const groupEl = document.createElement('div');
     groupEl.className = 'asset-group';
 
@@ -2081,9 +2103,15 @@ function buildAssetSelector() {
     groupEl.appendChild(labelEl);
 
     assets.forEach(a => {
+      const comingSoon = isAssetComingSoon(a.key);
       const item = document.createElement('button');
       item.className = 'asset-item' + (a.key === state.currentAsset ? ' selected' : '');
-      if (!a.bitfinex && !a.binance && !a.tradingview) item.classList.add('no-data');
+
+      if (comingSoon) {
+        item.classList.add('soon');
+        item.disabled = true;
+        item.setAttribute('aria-disabled', 'true');
+      }
 
       const open = isMarketOpen(a.key);
       const dot  = a.market === 'crypto' ? '🟢' : (open ? '🟢' : '🔴');
@@ -2091,17 +2119,20 @@ function buildAssetSelector() {
       item.innerHTML = `
         <span class="asset-item-symbol">${a.key}</span>
         <span class="asset-item-name">${a.name}</span>
-        <span class="asset-item-status">${dot}</span>
+        ${comingSoon ? '<span class="soon-badge">Soon</span>' : `<span class="asset-item-status">${dot}</span>`}
       `;
-      item.addEventListener('click', () => {
-        switchAsset(a.key);
-        toggleAssetSelector(false);
-      });
+
+      if (!comingSoon) {
+        item.addEventListener('click', () => {
+          switchAsset(a.key);
+          toggleAssetSelector(false);
+        });
+      }
       groupEl.appendChild(item);
     });
 
     container.appendChild(groupEl);
-  }
+  });
 }
 
 function toggleAssetSelector(forceState) {
@@ -2134,6 +2165,7 @@ function closeAssetSelectorOnOutside(e) {
 
 function switchAsset(key) {
   if (!ASSETS[key]) return;
+  if (isAssetComingSoon(key)) return; // disabled until futures/FX go live
   state.currentAsset = key;
   state.lastCandles  = null;
   state.lastResult   = null;
@@ -2215,6 +2247,10 @@ function bindEvents() {
 }
 
 function init() {
+  // Safety: if the default/persisted asset is disabled, fall back to BTC/USD.
+  if (isAssetComingSoon(state.currentAsset)) {
+    state.currentAsset = 'BTC/USD';
+  }
   bindEvents();
   initFooter();
   buildAssetSelector();
