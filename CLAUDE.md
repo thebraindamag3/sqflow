@@ -55,3 +55,6 @@ gh issue comment NUMBER --body "..." --repo thebraindamag3/sqflow
 - Always use: `git push -u origin <branch-name>`
 - Branch names must start with `claude/` and end with the session ID (otherwise push fails with HTTP 403)
 - On network failure, retry up to 4 times with exponential backoff (2s, 4s, 8s, 16s)
+
+## Git / Pull Requests
+- The default branch is `main`; never use `master` as the base branch for pull requests.
