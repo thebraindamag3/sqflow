@@ -361,9 +361,33 @@
 /* ============================================================
    RESPONSIVE
    ============================================================ */
+
+/* Mobile (≤ 767px) */
+@media (max-width: 767px) {
+  /* Auth modal: comfortable on mobile screens */
+  .auth-modal {
+    padding: var(--space-lg) var(--space-md) var(--space-md);
+    border-radius: var(--radius-md);
+  }
+
+  /* User block: hide the name on mobile, show only avatar + sign-out */
+  .user-name {
+    display: none;
+  }
+
+  /* Guest banner: wrap onto multiple lines */
+  #guest-banner {
+    flex-wrap: wrap;
+  }
+
+  .guest-banner-text {
+    font-size: 12px;
+  }
+}
+
+/* Small mobile (≤ 480px) */
 @media (max-width: 480px) {
-  .auth-modal        { padding: var(--space-lg) var(--space-md) var(--space-lg); }
-  .user-name         { max-width: 60px; }
-  #guest-banner      { flex-wrap: wrap; }
-  .guest-banner-text { font-size: 12px; }
+  .auth-modal { padding: var(--space-md) var(--space-sm) var(--space-md); }
+  #guest-banner { flex-wrap: wrap; }
+  .guest-banner-cta { width: 100%; text-align: center; }
 }
