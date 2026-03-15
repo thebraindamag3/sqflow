@@ -159,6 +159,19 @@ html, body {
   gap: var(--space-md);
 }
 
+.header-trading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+/* Show a visual separator between the user identity block and trading data
+   only when a user is authenticated (user block is non-empty). */
+#header-user:not(:empty) + .header-trading {
+  padding-left: var(--space-md);
+  border-left: 1px solid var(--border);
+}
+
 .logo {
   font-size: var(--text-xl);
   font-weight: 800;
@@ -180,8 +193,11 @@ html, body {
 
 .header-meta {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-md);
+  padding-left: var(--space-md);
+  border-left: 1px solid var(--border);
 }
 
 /* Segmented control — single connected pill */

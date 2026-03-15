@@ -29,19 +29,21 @@
       <div class="header-right">
         <!-- User avatar + name + sign-out (shown when authenticated) -->
         <div id="header-user"></div>
-        <div class="asset-selector-wrap">
-          <button class="asset-selector-trigger" id="asset-selector-trigger" aria-haspopup="listbox" aria-expanded="false" aria-label="Select trading asset">
-            <span class="asset-label" id="asset-label">BTC / USD</span>
-            <span class="asset-selector-arrow" aria-hidden="true">&#x25BE;</span>
-          </button>
-          <div class="asset-selector-dropdown" id="asset-selector-dropdown" role="listbox" aria-label="Available assets"></div>
-        </div>
-        <div class="asset-price-block">
-          <div class="asset-price-row">
-            <span class="asset-price" id="asset-price" aria-label="Current price" role="status">—</span>
-            <span class="market-status open" id="market-status" role="status">Open</span>
+        <div class="header-trading">
+          <div class="asset-selector-wrap">
+            <button class="asset-selector-trigger" id="asset-selector-trigger" aria-haspopup="listbox" aria-expanded="false" aria-label="Select trading asset">
+              <span class="asset-label" id="asset-label">BTC / USD</span>
+              <span class="asset-selector-arrow" aria-hidden="true">&#x25BE;</span>
+            </button>
+            <div class="asset-selector-dropdown" id="asset-selector-dropdown" role="listbox" aria-label="Available assets"></div>
           </div>
-          <span class="asset-change" id="asset-change" aria-label="Price change"></span>
+          <div class="asset-price-block">
+            <div class="asset-price-row">
+              <span class="asset-price" id="asset-price" aria-label="Current price" role="status">—</span>
+              <span class="market-status open" id="market-status" role="status">Open</span>
+            </div>
+            <span class="asset-change" id="asset-change" aria-label="Price change"></span>
+          </div>
         </div>
       </div>
     </header>
