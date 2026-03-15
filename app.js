@@ -172,10 +172,9 @@ function getApiUrls(tf, assetKey) {
     const symbolKey = assetKey || state.currentAsset;
     return {
       provider: 'yahoo',
-      // Twelve Data proxy URL (primary for non-crypto when API key is configured)
-      tdProxyUrl: asset.twelvedata
-        ? `/api/td-market-data?symbol=${encodeURIComponent(symbolKey)}&interval=${tdTf}`
-        : null,
+      // Twelve Data direct fetch params (primary for non-crypto when VITE_TWELVEDATA_API_KEY is set)
+      tdSymbol:   asset.twelvedata || null,
+      tdInterval: tdTf,
       proxyUrl: `/api/market-data?symbol=${encodeURIComponent(symbolKey)}&interval=${tf === '4h' ? '4h' : yahooTf}&range=${tf === '4h' ? '3mo' : range}`,
       directUrl: yahooDirectUrl,
       needs4h,
@@ -1394,10 +1393,11 @@ function looksLikeHtml(text) {
 async function fetchYahooCandles(urls, key) {
   const errors = [];
 
-  // Strategy 0: Twelve Data proxy (primary — faster, 4h native, more reliable)
-  if (urls.tdProxyUrl) {
+  // Strategy 0: Direct Twelve Data API (primary — faster, 4h native, more reliable)
+  // Uses VITE_TWELVEDATA_API_KEY injected at build time; no server needed.
+  if (urls.tdSymbol) {
     try {
-      const candles = await fetchTwelveDataCandles(urls.tdProxyUrl, key);
+      const candles = await fetchTwelveDataCandles(urls.tdSymbol, urls.tdInterval, key);
       console.log(`[fetchNonCrypto] Twelve Data succeeded for ${key} (${candles.length} candles)`);
       return candles;
     } catch (err) {
@@ -1477,30 +1477,60 @@ async function fetchYahooCandles(urls, key) {
   throw new Error(`Market data unavailable for ${key}. Please try again later.`);
 }
 
-// Fetch candles from the Twelve Data server proxy.
+// Fetch candles directly from the Twelve Data API using the Vite env var API key.
+// Works on static GitHub Pages — no server proxy required.
 // Returns a normalized OHLCV array on success, or throws on failure.
-async function fetchTwelveDataCandles(tdProxyUrl, key) {
+async function fetchTwelveDataCandles(tdSymbol, tdInterval, key) {
+  const apiKey = (typeof window !== 'undefined' && window.SQFLOW_TWELVEDATA_KEY) || '';
+  if (!apiKey) {
+    throw new Error('VITE_TWELVEDATA_API_KEY not configured — skipping Twelve Data');
+  }
+
+  const outputsize = 300;
+  const url = `https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(tdSymbol)}&interval=${encodeURIComponent(tdInterval)}&outputsize=${outputsize}&order=ASC&apikey=${encodeURIComponent(apiKey)}`;
+
   const TIMEOUT_MS = 8000;
   const controller = new AbortController();
   const tid = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const res = await fetch(tdProxyUrl, { signal: controller.signal });
+    const res = await fetch(url, { signal: controller.signal });
     clearTimeout(tid);
-    const text = await res.text();
-    if (looksLikeHtml(text)) throw new Error('Twelve Data proxy returned HTML (not available)');
     if (!res.ok) {
-      let msg = `Twelve Data proxy HTTP ${res.status}`;
-      try { msg = JSON.parse(text).error || msg; } catch (_) { /* ignore */ }
-      throw new Error(msg);
+      throw new Error(`Twelve Data HTTP ${res.status} for ${key}`);
     }
-    const data = JSON.parse(text);
-    if (!Array.isArray(data) || data.length === 0) {
-      throw new Error(`Empty response from Twelve Data proxy for ${key}`);
+    const data = await res.json();
+    if (data.status === 'error' || !data.values || !Array.isArray(data.values) || data.values.length === 0) {
+      throw new Error(data.message || `No data from Twelve Data for ${key}`);
     }
-    if (data.length < 50) {
-      throw new Error(`Insufficient data from Twelve Data (${data.length} candles) for ${key}`);
+
+    // Normalize Twelve Data response to standard OHLCV format.
+    // Twelve Data returns datetimes as "YYYY-MM-DD HH:MM:SS" or "YYYY-MM-DD" strings.
+    const candles = data.values
+      .map(v => {
+        const o = parseFloat(v.open);
+        const h = parseFloat(v.high);
+        const l = parseFloat(v.low);
+        const c = parseFloat(v.close);
+        const vol = parseFloat(v.volume) || 0;
+        if (isNaN(o) || isNaN(h) || isNaN(l) || isNaN(c)) return null;
+        return {
+          time:   new Date(v.datetime.replace(' ', 'T') + (v.datetime.length === 10 ? 'T00:00:00Z' : 'Z')).getTime(),
+          open:   o,
+          high:   h,
+          low:    l,
+          close:  c,
+          volume: vol,
+        };
+      })
+      .filter(Boolean);
+
+    if (candles.length === 0) {
+      throw new Error(`No valid candles from Twelve Data for ${key} — market may be closed`);
     }
-    return data;
+    if (candles.length < 50) {
+      throw new Error(`Insufficient data from Twelve Data (${candles.length} candles) for ${key}`);
+    }
+    return candles;
   } catch (err) {
     clearTimeout(tid);
     throw err;
