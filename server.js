@@ -32,9 +32,10 @@ function addSecurityHeaders(res) {
     [
       "default-src 'self'",
       "script-src 'self' https://www.gstatic.com",
-      // Allow connections to Firebase, Yahoo Finance, and crypto APIs
+      // Allow connections to Firebase, Yahoo Finance, Twelve Data, and crypto APIs
       "connect-src 'self' https://api-pub.bitfinex.com https://api.binance.com " +
         "https://query1.finance.yahoo.com https://api.allorigins.win https://corsproxy.io " +
+        "https://api.twelvedata.com " +
         "https://*.firebaseio.com https://identitytoolkit.googleapis.com " +
         "https://securetoken.googleapis.com",
       "style-src 'self' 'unsafe-inline'",
@@ -133,6 +134,32 @@ const YAHOO_SYMBOLS = {
   'USD/JPY': 'JPY=X',
   'AUD/USD': 'AUDUSD=X',
   'USD/CHF': 'CHF=X',
+};
+
+// ── Symbol mapping: internal keys → Twelve Data symbols ──────
+// Twelve Data supports 4h natively (no aggregation needed).
+// FX pairs use the standard "BASE/QUOTE" format.
+// Futures use their standard root symbol.
+const TWELVE_DATA_SYMBOLS = {
+  // Futures — Indices
+  'ES1!':  'ES1!',
+  'NQ1!':  'NQ1!',
+  'YM1!':  'YM1!',
+  'RTY1!': 'RTY1!',
+  'DAX1!': 'DAX1!',
+  'NKD1!': 'NKD1!',
+  // Futures — Commodities
+  'GC1!':  'GC1!',
+  'SI1!':  'SI1!',
+  'CL1!':  'CL1!',
+  'NG1!':  'NG1!',
+  'HG1!':  'HG1!',
+  // FX Pairs
+  'GBP/USD': 'GBP/USD',
+  'EUR/USD': 'EUR/USD',
+  'USD/JPY': 'USD/JPY',
+  'AUD/USD': 'AUD/USD',
+  'USD/CHF': 'USD/CHF',
 };
 
 // ── MIME types for static file serving ───────────────────────
@@ -305,6 +332,108 @@ async function handleMarketData(query, res) {
   }
 }
 
+// ── Twelve Data proxy handler ────────────────────────────────
+// Proxies requests to api.twelvedata.com so the browser never exposes the API key.
+// Supports the same interval/range parameters as the Yahoo proxy for drop-in use.
+// Twelve Data supports 4h natively — no server-side aggregation needed.
+
+const TD_VALID_INTERVALS = new Set(['1min', '5min', '15min', '30min', '1h', '2h', '4h', '1day', '1week', '1month']);
+
+async function handleTwelveData(query, res) {
+  const apiKey = process.env.TWELVE_DATA_API_KEY || '';
+  if (!apiKey) {
+    res.writeHead(503, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Twelve Data API key not configured on this server.' }));
+    return;
+  }
+
+  const symbol = query.symbol;
+  if (!symbol) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Missing required parameter: symbol' }));
+    return;
+  }
+
+  const tdSymbol = TWELVE_DATA_SYMBOLS[symbol];
+  if (!tdSymbol) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: `Unsupported symbol: ${symbol}. Available: ${Object.keys(TWELVE_DATA_SYMBOLS).join(', ')}` }));
+    return;
+  }
+
+  // Map our internal timeframe names to Twelve Data interval strings
+  const intervalMap = { '1h': '1h', '4h': '4h', '1d': '1day', '1w': '1week' };
+  const rawInterval = query.interval || '4h';
+  const interval = intervalMap[rawInterval] || (TD_VALID_INTERVALS.has(rawInterval) ? rawInterval : '4h');
+
+  // outputsize: max 5000; use 300 to match STRATEGY.CANDLE_LIMIT
+  const outputsize = Math.min(parseInt(query.outputsize, 10) || 300, 5000);
+
+  const tdUrl = `https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(tdSymbol)}&interval=${interval}&outputsize=${outputsize}&order=ASC&apikey=${apiKey}`;
+
+  try {
+    console.log(`[td-proxy] ${symbol} → ${tdSymbol} (interval=${interval}, outputsize=${outputsize})`);
+    const { statusCode, body } = await httpsGet(tdUrl);
+
+    if (statusCode !== 200) {
+      console.warn(`[td-proxy] Twelve Data returned HTTP ${statusCode} for ${tdSymbol}`);
+      res.writeHead(502, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: `Twelve Data returned HTTP ${statusCode} for ${symbol}.` }));
+      return;
+    }
+
+    const data = JSON.parse(body);
+
+    if (data.status === 'error' || !data.values || !Array.isArray(data.values) || data.values.length === 0) {
+      const msg = data.message || `No data available for ${symbol}.`;
+      console.warn(`[td-proxy] Twelve Data error for ${tdSymbol}:`, msg);
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: msg }));
+      return;
+    }
+
+    // Normalize Twelve Data response to our standard OHLCV format.
+    // Twelve Data returns datetimes as "YYYY-MM-DD HH:MM:SS" or "YYYY-MM-DD" strings.
+    const candles = data.values
+      .map(v => {
+        const o = parseFloat(v.open);
+        const h = parseFloat(v.high);
+        const l = parseFloat(v.low);
+        const c = parseFloat(v.close);
+        const vol = parseFloat(v.volume) || 0;
+        if (isNaN(o) || isNaN(h) || isNaN(l) || isNaN(c)) return null;
+        return {
+          time:   new Date(v.datetime.replace(' ', 'T') + (v.datetime.length === 10 ? 'T00:00:00Z' : 'Z')).getTime(),
+          open:   o,
+          high:   h,
+          low:    l,
+          close:  c,
+          volume: vol,
+        };
+      })
+      .filter(Boolean);
+
+    if (candles.length === 0) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: `No valid candles for ${symbol}. Market may be closed or symbol unsupported.` }));
+      return;
+    }
+
+    console.log(`[td-proxy] ${symbol}: ${candles.length} candles returned`);
+
+    res.writeHead(200, {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'public, max-age=60',
+    });
+    res.end(JSON.stringify(candles));
+
+  } catch (err) {
+    console.error(`[td-proxy] Error fetching ${symbol}:`, err.message);
+    res.writeHead(502, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: `Failed to fetch Twelve Data for ${symbol}. Please try again later.` }));
+  }
+}
+
 // ── Static file server ───────────────────────────────────────
 function serveStatic(pathname, res) {
   // Default to index.html
@@ -378,9 +507,15 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Route: /api/market-data
+  // Route: /api/market-data (Yahoo Finance proxy)
   if (pathname === '/api/market-data' && req.method === 'GET') {
     handleMarketData(query, res);
+    return;
+  }
+
+  // Route: /api/td-market-data (Twelve Data proxy)
+  if (pathname === '/api/td-market-data' && req.method === 'GET') {
+    handleTwelveData(query, res);
     return;
   }
 
