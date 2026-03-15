@@ -2087,3 +2087,39 @@ function init() {
 }
 
 init();
+
+// ── Support card: copy-to-clipboard ──────────────────────────────
+document.addEventListener('click', function (e) {
+  const btn = e.target.closest('.about-copy-btn');
+  if (!btn) return;
+  const addr = btn.dataset.addr;
+  if (!addr) return;
+  navigator.clipboard.writeText(addr).then(function () {
+    const original = btn.textContent;
+    btn.textContent = 'Copied';
+    btn.classList.add('copied');
+    btn.disabled = true;
+    setTimeout(function () {
+      btn.textContent = original;
+      btn.classList.remove('copied');
+      btn.disabled = false;
+    }, 2000);
+  }).catch(function () {
+    // Fallback for older browsers
+    const ta = document.createElement('textarea');
+    ta.value = addr;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try { document.execCommand('copy'); } catch (_) {}
+    document.body.removeChild(ta);
+    btn.textContent = 'Copied';
+    btn.classList.add('copied');
+    setTimeout(function () {
+      btn.textContent = 'Copy';
+      btn.classList.remove('copied');
+    }, 2000);
+  });
+});
