@@ -429,6 +429,20 @@ html, body {
 .asset-change.up   { color: var(--long); }
 .asset-change.down { color: var(--short); }
 
+/* Last-updated timestamp for FX and futures price data */
+.price-last-updated {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  margin-top: 1px;
+  min-height: 14px;
+}
+.price-last-updated.stale {
+  color: var(--warning);
+  opacity: 0.75;
+}
+
 .market-status {
   display: inline-flex;
   align-items: center;

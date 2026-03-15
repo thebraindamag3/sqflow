@@ -28,26 +28,26 @@ const STRATEGY = {
 
 // ── Asset registry ─────────────────────────────────────────
 const ASSETS = {
-  // Futures — Indices (Yahoo Finance proxy for data)
-  'ES1!':  { name: 'S&P 500 E-mini',     category: 'Futures — Indices',      market: 'cme',   bitfinex: null, binance: null, tradingview: 'CME_MINI:ES1!',  yahoo: 'ES=F' },
-  'NQ1!':  { name: 'Nasdaq 100 E-mini',   category: 'Futures — Indices',      market: 'cme',   bitfinex: null, binance: null, tradingview: 'CME_MINI:NQ1!',  yahoo: 'NQ=F' },
-  'YM1!':  { name: 'Dow Jones E-mini',    category: 'Futures — Indices',      market: 'cme',   bitfinex: null, binance: null, tradingview: 'CBOT_MINI:YM1!', yahoo: 'YM=F' },
-  'RTY1!': { name: 'Russell 2000 E-mini', category: 'Futures — Indices',      market: 'cme',   bitfinex: null, binance: null, tradingview: 'CME_MINI:RTY1!', yahoo: 'RTY=F' },
-  'DAX1!': { name: 'DAX Futures',         category: 'Futures — Indices',      market: 'eurex', bitfinex: null, binance: null, tradingview: 'EUREX:FDAX1!',   yahoo: '^GDAXI' },
-  'NKD1!': { name: 'Nikkei 225 Futures',  category: 'Futures — Indices',      market: 'cme',   bitfinex: null, binance: null, tradingview: 'CME:NKD1!',      yahoo: 'NKD=F' },
-  // Futures — Commodities (Yahoo Finance proxy for data)
-  'GC1!':  { name: 'Gold',                category: 'Futures — Commodities',  market: 'cme',   bitfinex: null, binance: null, tradingview: 'COMEX:GC1!',     yahoo: 'GC=F' },
-  'SI1!':  { name: 'Silver',              category: 'Futures — Commodities',  market: 'cme',   bitfinex: null, binance: null, tradingview: 'COMEX:SI1!',     yahoo: 'SI=F' },
-  'CL1!':  { name: 'Crude Oil WTI',       category: 'Futures — Commodities',  market: 'cme',   bitfinex: null, binance: null, tradingview: 'NYMEX:CL1!',     yahoo: 'CL=F' },
-  'NG1!':  { name: 'Natural Gas',         category: 'Futures — Commodities',  market: 'cme',   bitfinex: null, binance: null, tradingview: 'NYMEX:NG1!',     yahoo: 'NG=F' },
-  'HG1!':  { name: 'Copper',              category: 'Futures — Commodities',  market: 'cme',   bitfinex: null, binance: null, tradingview: 'COMEX:HG1!',     yahoo: 'HG=F' },
-  // FX Pairs (Yahoo Finance proxy for data)
-  'GBP/USD': { name: 'British Pound',     category: 'FX Pairs', market: 'forex', bitfinex: null, binance: null, tradingview: 'FX:GBPUSD', yahoo: 'GBPUSD=X' },
-  'EUR/USD': { name: 'Euro',              category: 'FX Pairs', market: 'forex', bitfinex: null, binance: null, tradingview: 'FX:EURUSD', yahoo: 'EURUSD=X' },
-  'USD/JPY': { name: 'Japanese Yen',      category: 'FX Pairs', market: 'forex', bitfinex: null, binance: null, tradingview: 'FX:USDJPY', yahoo: 'JPY=X' },
-  'AUD/USD': { name: 'Australian Dollar', category: 'FX Pairs', market: 'forex', bitfinex: null, binance: null, tradingview: 'FX:AUDUSD', yahoo: 'AUDUSD=X' },
-  'USD/CHF': { name: 'Swiss Franc',       category: 'FX Pairs', market: 'forex', bitfinex: null, binance: null, tradingview: 'FX:USDCHF', yahoo: 'CHF=X' },
-  // Crypto (Bitfinex + Binance)
+  // Futures — Indices (Twelve Data primary, Yahoo Finance fallback)
+  'ES1!':  { name: 'S&P 500 E-mini',     category: 'Futures — Indices',      market: 'cme',   bitfinex: null, binance: null, tradingview: 'CME_MINI:ES1!',  yahoo: 'ES=F',    twelvedata: 'ES1!' },
+  'NQ1!':  { name: 'Nasdaq 100 E-mini',   category: 'Futures — Indices',      market: 'cme',   bitfinex: null, binance: null, tradingview: 'CME_MINI:NQ1!',  yahoo: 'NQ=F',    twelvedata: 'NQ1!' },
+  'YM1!':  { name: 'Dow Jones E-mini',    category: 'Futures — Indices',      market: 'cme',   bitfinex: null, binance: null, tradingview: 'CBOT_MINI:YM1!', yahoo: 'YM=F',    twelvedata: 'YM1!' },
+  'RTY1!': { name: 'Russell 2000 E-mini', category: 'Futures — Indices',      market: 'cme',   bitfinex: null, binance: null, tradingview: 'CME_MINI:RTY1!', yahoo: 'RTY=F',   twelvedata: 'RTY1!' },
+  'DAX1!': { name: 'DAX Futures',         category: 'Futures — Indices',      market: 'eurex', bitfinex: null, binance: null, tradingview: 'EUREX:FDAX1!',   yahoo: '^GDAXI',  twelvedata: 'DAX1!' },
+  'NKD1!': { name: 'Nikkei 225 Futures',  category: 'Futures — Indices',      market: 'cme',   bitfinex: null, binance: null, tradingview: 'CME:NKD1!',      yahoo: 'NKD=F',   twelvedata: 'NKD1!' },
+  // Futures — Commodities (Twelve Data primary, Yahoo Finance fallback)
+  'GC1!':  { name: 'Gold',                category: 'Futures — Commodities',  market: 'cme',   bitfinex: null, binance: null, tradingview: 'COMEX:GC1!',     yahoo: 'GC=F',    twelvedata: 'GC1!' },
+  'SI1!':  { name: 'Silver',              category: 'Futures — Commodities',  market: 'cme',   bitfinex: null, binance: null, tradingview: 'COMEX:SI1!',     yahoo: 'SI=F',    twelvedata: 'SI1!' },
+  'CL1!':  { name: 'Crude Oil WTI',       category: 'Futures — Commodities',  market: 'cme',   bitfinex: null, binance: null, tradingview: 'NYMEX:CL1!',     yahoo: 'CL=F',    twelvedata: 'CL1!' },
+  'NG1!':  { name: 'Natural Gas',         category: 'Futures — Commodities',  market: 'cme',   bitfinex: null, binance: null, tradingview: 'NYMEX:NG1!',     yahoo: 'NG=F',    twelvedata: 'NG1!' },
+  'HG1!':  { name: 'Copper',              category: 'Futures — Commodities',  market: 'cme',   bitfinex: null, binance: null, tradingview: 'COMEX:HG1!',     yahoo: 'HG=F',    twelvedata: 'HG1!' },
+  // FX Pairs (Twelve Data primary, Yahoo Finance fallback)
+  'GBP/USD': { name: 'British Pound',     category: 'FX Pairs', market: 'forex', bitfinex: null, binance: null, tradingview: 'FX:GBPUSD', yahoo: 'GBPUSD=X', twelvedata: 'GBP/USD' },
+  'EUR/USD': { name: 'Euro',              category: 'FX Pairs', market: 'forex', bitfinex: null, binance: null, tradingview: 'FX:EURUSD', yahoo: 'EURUSD=X', twelvedata: 'EUR/USD' },
+  'USD/JPY': { name: 'Japanese Yen',      category: 'FX Pairs', market: 'forex', bitfinex: null, binance: null, tradingview: 'FX:USDJPY', yahoo: 'JPY=X',    twelvedata: 'USD/JPY' },
+  'AUD/USD': { name: 'Australian Dollar', category: 'FX Pairs', market: 'forex', bitfinex: null, binance: null, tradingview: 'FX:AUDUSD', yahoo: 'AUDUSD=X', twelvedata: 'AUD/USD' },
+  'USD/CHF': { name: 'Swiss Franc',       category: 'FX Pairs', market: 'forex', bitfinex: null, binance: null, tradingview: 'FX:USDCHF', yahoo: 'CHF=X',    twelvedata: 'USD/CHF' },
+  // Crypto (Bitfinex + Binance — untouched)
   'BTC/USD': { name: 'Bitcoin',   category: 'Crypto', market: 'crypto', bitfinex: 'tBTCUSD', binance: 'BTCUSDT', tradingview: null },
   'ETH/USD': { name: 'Ethereum',  category: 'Crypto', market: 'crypto', bitfinex: 'tETHUSD', binance: 'ETHUSDT', tradingview: null },
   'SOL/USD': { name: 'Solana',    category: 'Crypto', market: 'crypto', bitfinex: 'tSOLUSD', binance: 'SOLUSDT', tradingview: null },
@@ -160,16 +160,23 @@ function getApiUrls(tf, assetKey) {
     };
   }
 
-  // Non-crypto assets (Futures, FX): server-side Yahoo Finance proxy with CORS fallback
+  // Non-crypto assets (Futures, FX): Twelve Data primary, Yahoo Finance fallback
   if (asset && asset.yahoo) {
     const needs4h = tf === '4h';
     const yahooTf = needs4h ? '1h' : ({ '1h': '1h', '4h': '4h', '1d': '1d', '1w': '1wk' }[tf] || '4h');
     const range   = needs4h ? '2y' : ({ '1h': '1mo', '4h': '3mo', '1d': '2y', '1w': '10y' }[tf] || '3mo');
     const yahooSymbol = asset.yahoo;
     const yahooDirectUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?interval=${yahooTf}&range=${range}`;
+    // Twelve Data interval mapping (supports 4h natively — no aggregation needed)
+    const tdTf = { '1h': '1h', '4h': '4h', '1d': '1day', '1w': '1week' }[tf] || '4h';
+    const symbolKey = assetKey || state.currentAsset;
     return {
       provider: 'yahoo',
-      proxyUrl: `/api/market-data?symbol=${encodeURIComponent(assetKey || state.currentAsset)}&interval=${tf === '4h' ? '4h' : yahooTf}&range=${tf === '4h' ? '3mo' : range}`,
+      // Twelve Data proxy URL (primary for non-crypto when API key is configured)
+      tdProxyUrl: asset.twelvedata
+        ? `/api/td-market-data?symbol=${encodeURIComponent(symbolKey)}&interval=${tdTf}`
+        : null,
+      proxyUrl: `/api/market-data?symbol=${encodeURIComponent(symbolKey)}&interval=${tf === '4h' ? '4h' : yahooTf}&range=${tf === '4h' ? '3mo' : range}`,
       directUrl: yahooDirectUrl,
       needs4h,
     };
@@ -195,6 +202,12 @@ const state = {
 // Populated by run() and the 30 s monitor so closeTrade() can look up
 // the correct last price even when a different asset is currently displayed.
 const candleCache = {};
+
+// Last-known-good price store for FX and futures instruments.
+// On a successful fetch the latest close price and timestamp are saved here.
+// On a failed fetch, the stored value is shown instead of leaving the panel blank.
+// Keyed by assetKey (e.g. 'ES1!', 'EUR/USD').
+const lastKnownGoodPrices = {};
 
 // ============================================================
 // MATH HELPERS
@@ -1381,6 +1394,18 @@ function looksLikeHtml(text) {
 async function fetchYahooCandles(urls, key) {
   const errors = [];
 
+  // Strategy 0: Twelve Data proxy (primary — faster, 4h native, more reliable)
+  if (urls.tdProxyUrl) {
+    try {
+      const candles = await fetchTwelveDataCandles(urls.tdProxyUrl, key);
+      console.log(`[fetchNonCrypto] Twelve Data succeeded for ${key} (${candles.length} candles)`);
+      return candles;
+    } catch (err) {
+      console.warn(`[fetchNonCrypto] Twelve Data failed for ${key}:`, err.message);
+      errors.push(`Twelve Data: ${err.message}`);
+    }
+  }
+
   // Strategy 1: Try local server proxy (works when running via `node server.js`)
   try {
     const res = await fetch(urls.proxyUrl);
@@ -1450,6 +1475,36 @@ async function fetchYahooCandles(urls, key) {
   }
 
   throw new Error(`Market data unavailable for ${key}. Please try again later.`);
+}
+
+// Fetch candles from the Twelve Data server proxy.
+// Returns a normalized OHLCV array on success, or throws on failure.
+async function fetchTwelveDataCandles(tdProxyUrl, key) {
+  const TIMEOUT_MS = 8000;
+  const controller = new AbortController();
+  const tid = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const res = await fetch(tdProxyUrl, { signal: controller.signal });
+    clearTimeout(tid);
+    const text = await res.text();
+    if (looksLikeHtml(text)) throw new Error('Twelve Data proxy returned HTML (not available)');
+    if (!res.ok) {
+      let msg = `Twelve Data proxy HTTP ${res.status}`;
+      try { msg = JSON.parse(text).error || msg; } catch (_) { /* ignore */ }
+      throw new Error(msg);
+    }
+    const data = JSON.parse(text);
+    if (!Array.isArray(data) || data.length === 0) {
+      throw new Error(`Empty response from Twelve Data proxy for ${key}`);
+    }
+    if (data.length < 50) {
+      throw new Error(`Insufficient data from Twelve Data (${data.length} candles) for ${key}`);
+    }
+    return data;
+  } catch (err) {
+    clearTimeout(tid);
+    throw err;
+  }
 }
 
 // ============================================================
@@ -1625,6 +1680,28 @@ function updateUI(r, capital) {
   const changePct = ((r.currentPrice - r.prevClose) / r.prevClose) * 100;
   changeEl.textContent = (changePct >= 0 ? '+' : '') + changePct.toFixed(2) + '%';
   changeEl.className   = 'asset-change ' + (changePct >= 0 ? 'up' : 'down');
+
+  // Last-known-good price: save on successful fetch for FX/futures fallback
+  const assetMeta = ASSETS[state.currentAsset];
+  if (assetMeta && assetMeta.market !== 'crypto' && r.currentPrice) {
+    lastKnownGoodPrices[state.currentAsset] = {
+      price:     r.currentPrice,
+      changePct,
+      fetchedAt: Date.now(),
+    };
+  }
+
+  // "Last updated" label — shown for FX and futures to indicate data freshness
+  const lastUpdatedEl = el('price-last-updated');
+  if (lastUpdatedEl) {
+    if (assetMeta && assetMeta.market !== 'crypto') {
+      const ts = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      lastUpdatedEl.textContent = `Updated ${ts}${USER_TZ_ABBR ? ' ' + USER_TZ_ABBR : ''}`;
+      lastUpdatedEl.className = 'price-last-updated';
+    } else {
+      lastUpdatedEl.textContent = '';
+    }
+  }
 
   // Signal
   setSignalCard(r.signal);
@@ -1839,6 +1916,8 @@ async function run() {
     if (priceEl) priceEl.textContent = '—';
     const changeEl = el('asset-change');
     if (changeEl) changeEl.textContent = '';
+    const lastUpdatedEl = el('price-last-updated');
+    if (lastUpdatedEl) lastUpdatedEl.textContent = '';
     // Hide sections that only make sense when the market is open
     setMarketSectionsVisible(false);
     btn.disabled    = false;
@@ -1884,9 +1963,32 @@ async function run() {
       if (retryBtn) retryBtn.addEventListener('click', manualRefresh);
     }
 
-    // Still update price display for context
+    // If a last-known-good price exists for this FX/futures asset, keep showing it
     const priceEl = el('asset-price');
-    if (priceEl) priceEl.textContent = '—';
+    const lkg = lastKnownGoodPrices[state.currentAsset];
+    if (priceEl) {
+      if (lkg) {
+        priceEl.textContent = '$' + fmt(lkg.price);
+        const changeEl = el('asset-change');
+        if (changeEl) {
+          changeEl.textContent = (lkg.changePct >= 0 ? '+' : '') + lkg.changePct.toFixed(2) + '%';
+          changeEl.className   = 'asset-change ' + (lkg.changePct >= 0 ? 'up' : 'down');
+        }
+        const lastUpdatedEl = el('price-last-updated');
+        if (lastUpdatedEl) {
+          const ageMs = Date.now() - lkg.fetchedAt;
+          const ageMins = Math.floor(ageMs / 60000);
+          const ts = new Date(lkg.fetchedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          const label = ageMins > 0 ? `Last seen ${ts} (${ageMins}m ago)` : `Last seen ${ts}`;
+          lastUpdatedEl.textContent = label;
+          lastUpdatedEl.className = 'price-last-updated stale';
+        }
+      } else {
+        priceEl.textContent = '—';
+        const lastUpdatedEl = el('price-last-updated');
+        if (lastUpdatedEl) lastUpdatedEl.textContent = '';
+      }
+    }
     el('enter-trade-wrap')?.style && (el('enter-trade-wrap').style.display = 'none');
   } finally {
     btn.disabled    = false;
