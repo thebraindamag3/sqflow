@@ -1796,6 +1796,11 @@ function switchTab(tab) {
   // It shows the selected pair's price which is meaningless on Active Trades / History.
   const priceBlock = document.querySelector('.asset-price-block');
   if (priceBlock) priceBlock.style.display = tab === 'dashboard' ? '' : 'none';
+
+  // Hide timeframe selector on non-dashboard tabs — the control affects dashboard
+  // signal data only and has no effect on other tabs.
+  const tfSelector = document.querySelector('.tf-selector');
+  if (tfSelector) tfSelector.style.display = tab === 'dashboard' ? '' : 'none';
 }
 
 // ============================================================
