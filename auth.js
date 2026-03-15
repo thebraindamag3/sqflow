@@ -36,6 +36,27 @@
 //   6. Restart the dev server (npm start)
 // ============================================================
 
+// ── Shared localStorage keys ──────────────────────────────────
+// Defined here (auth.js loads before app.js) so both modules reference the
+// same constants rather than duplicating raw strings at each call site.
+const STORAGE_KEYS = {
+  ACTIVE_TRADES: 'sqFlow_activeTrades',
+  HISTORY:       'sqFlow_tradeHistory',
+  SCHEMA:        'sqFlow_schemaVersion',
+};
+
+// ── HTML escape utility ────────────────────────────────────────
+// Safe for injecting dynamic strings into innerHTML attributes and text.
+// Defined here (auth.js loads first) so app.js can use the same global.
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // ── Firebase project configuration ───────────────────────────
 // Set window.SQFLOW_FIREBASE_CONFIG before this script loads to enable
 // Google OAuth and email/password sign-in. Without it, the app runs in
@@ -311,15 +332,15 @@ const Auth = (() => {
           .sort((a, b) => (b.exitTime || 0) - (a.exitTime || 0))
           .slice(0, 200);
 
-        localStorage.setItem('sqFlow_activeTrades', JSON.stringify(trades));
-        localStorage.setItem('sqFlow_tradeHistory',  JSON.stringify(history));
+        localStorage.setItem(STORAGE_KEYS.ACTIVE_TRADES, JSON.stringify(trades));
+        localStorage.setItem(STORAGE_KEYS.HISTORY,       JSON.stringify(history));
       } else {
         // No Firestore documents for this user yet.
         if (storedUid === uid) {
           // Same user: localStorage may have trades that were never written to
           // Firestore (e.g. a previous write failed). Preserve them and sync up.
-          const localTrades  = _parseLs('sqFlow_activeTrades', []);
-          const localHistory = _parseLs('sqFlow_tradeHistory',  []);
+          const localTrades  = _parseLs(STORAGE_KEYS.ACTIVE_TRADES, []);
+          const localHistory = _parseLs(STORAGE_KEYS.HISTORY,       []);
           if (localTrades.length > 0 || localHistory.length > 0) {
             console.log('[SqFlow Auth] Syncing local trades to Firestore (was never persisted).');
             await _batchWriteSubcollection(uid, 'activeTrades', localTrades, 'id')
@@ -330,8 +351,8 @@ const Auth = (() => {
           // localStorage is already correct — no overwrite needed.
         } else {
           // Different (or no) previous user — clear stale data.
-          localStorage.setItem('sqFlow_activeTrades', JSON.stringify([]));
-          localStorage.setItem('sqFlow_tradeHistory',  JSON.stringify([]));
+          localStorage.setItem(STORAGE_KEYS.ACTIVE_TRADES, JSON.stringify([]));
+          localStorage.setItem(STORAGE_KEYS.HISTORY,       JSON.stringify([]));
         }
       }
     } catch (e) {
@@ -346,8 +367,8 @@ const Auth = (() => {
       }
       // On error, keep localStorage if it belongs to this user; clear otherwise.
       if (storedUid !== uid) {
-        localStorage.setItem('sqFlow_activeTrades', JSON.stringify([]));
-        localStorage.setItem('sqFlow_tradeHistory',  JSON.stringify([]));
+        localStorage.setItem(STORAGE_KEYS.ACTIVE_TRADES, JSON.stringify([]));
+        localStorage.setItem(STORAGE_KEYS.HISTORY,       JSON.stringify([]));
       }
     } finally {
       _setTradesLoading(false);
@@ -358,7 +379,7 @@ const Auth = (() => {
 
     // Set schema version so loadTrades() skips the v1→v2 migration,
     // which would otherwise wipe the data we just restored from Firestore.
-    localStorage.setItem('sqFlow_schemaVersion', '2');
+    localStorage.setItem(STORAGE_KEYS.SCHEMA, '2');
 
     // Reload app data from updated localStorage.
     if (typeof loadTrades          === 'function') loadTrades();
@@ -388,8 +409,8 @@ const Auth = (() => {
   async function _migrateGuestData() {
     if (!_db || !_user) return;
     try {
-      const guestTrades  = _parseLs('sqFlow_activeTrades', []);
-      const guestHistory = _parseLs('sqFlow_tradeHistory', []);
+      const guestTrades  = _parseLs(STORAGE_KEYS.ACTIVE_TRADES, []);
+      const guestHistory = _parseLs(STORAGE_KEYS.HISTORY,       []);
       if (!guestTrades.length && !guestHistory.length) return;
 
       const uid = _user.uid;
@@ -680,12 +701,12 @@ const Auth = (() => {
     // Firebase sanitises photoURL values, but defense-in-depth prevents attribute
     // breakout if the value ever contains a double-quote character.
     const avatarHTML = photo
-      ? `<img class="user-avatar-img" src="${_esc(photo)}" alt="" referrerpolicy="no-referrer" />`
+      ? `<img class="user-avatar-img" src="${escHtml(photo)}" alt="" referrerpolicy="no-referrer" />`
       : `<span class="user-avatar-initials">${initials}</span>`;
 
     wrap.innerHTML = `
       <div class="user-avatar">${avatarHTML}</div>
-      <span class="user-name">${_esc(name.split(/\s+/)[0])}</span>
+      <span class="user-name">${escHtml(name.split(/\s+/)[0])}</span>
       <button class="user-signout-btn" id="signout-btn" title="Sign out">&#x2715;</button>
     `;
     wrap.style.display = 'flex';
@@ -931,17 +952,9 @@ const Auth = (() => {
     if (guestBtn) guestBtn.addEventListener('click', continueAsGuest);
   }
 
-  // ── Utility ─────────────────────────────────────────────────
-
-  function _esc(str) {
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-  }
-
   // ── Public API ───────────────────────────────────────────────
+  // Note: escHtml() is used above for HTML escaping; it is defined as a
+  // module-level global in this file (before this IIFE) so app.js can also use it.
   return {
     init:            _init,
     signInWithGoogle,
