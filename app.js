@@ -1007,35 +1007,40 @@ function showEnterButton(signal) {
 // MONITOR INTERVAL (30 seconds)
 // ============================================================
 
+// Runs one monitor cycle: fetches latest candles and updates all trade cards.
+async function runMonitorCycle() {
+  if (state.activeTrades.length === 0) { stopTradeMonitor(); return; }
+
+  // Group trades by timeframe+asset to minimise API calls
+  const byKey = {};
+  state.activeTrades.forEach(t => {
+    const k = `${t.timeframe}|${t.asset || 'BTC/USD'}`;
+    (byKey[k] = byKey[k] || []).push(t);
+  });
+
+  for (const [key, trades] of Object.entries(byKey)) {
+    const [tf, asset] = key.split('|');
+    try {
+      const candles = await fetchCandles(tf, asset);
+      candleCache[`${asset}|${tf}`] = candles;
+      if (tf === state.currentTimeframe && asset === state.currentAsset) state.lastCandles = candles;
+      trades.forEach(trade => {
+        const exit = analyzeExitSignals(candles, trade);
+        updateTradeCard(trade.id, exit);
+        autoCloseIfNeeded(trade, exit);
+      });
+    } catch (e) {
+      console.warn('Monitor error for TF', tf, ':', e);
+    }
+  }
+}
+
 // Starts the 30s polling loop if not already running.
+// Runs the first cycle immediately so trade cards update without a 30s delay.
 function ensureMonitorRunning() {
   if (state.monitorInterval || state.activeTrades.length === 0) return;
-  state.monitorInterval = setInterval(async () => {
-    if (state.activeTrades.length === 0) { stopTradeMonitor(); return; }
-
-    // Group trades by timeframe+asset to minimise API calls
-    const byKey = {};
-    state.activeTrades.forEach(t => {
-      const k = `${t.timeframe}|${t.asset || 'BTC/USD'}`;
-      (byKey[k] = byKey[k] || []).push(t);
-    });
-
-    for (const [key, trades] of Object.entries(byKey)) {
-      const [tf, asset] = key.split('|');
-      try {
-        const candles = await fetchCandles(tf, asset);
-        candleCache[`${asset}|${tf}`] = candles;
-        if (tf === state.currentTimeframe && asset === state.currentAsset) state.lastCandles = candles;
-        trades.forEach(trade => {
-          const exit = analyzeExitSignals(candles, trade);
-          updateTradeCard(trade.id, exit);
-          autoCloseIfNeeded(trade, exit);
-        });
-      } catch (e) {
-        console.warn('Monitor error for TF', tf, ':', e);
-      }
-    }
-  }, 30000);
+  runMonitorCycle(); // immediate first run — eliminates the 30s "Analyzing…" delay
+  state.monitorInterval = setInterval(runMonitorCycle, 30000);
 }
 
 function autoCloseIfNeeded(trade, exit) {
