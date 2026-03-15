@@ -153,6 +153,12 @@ html, body {
   gap: var(--space-md);
 }
 
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
 .logo {
   font-size: var(--text-xl);
   font-weight: 800;

@@ -302,7 +302,6 @@
   display: none;
   align-items: center;
   gap: var(--space-sm);
-  margin-left: var(--space-md);
 }
 
 .user-avatar {
