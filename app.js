@@ -761,6 +761,10 @@ function enterTrade() {
 
   state.activeTrades.push(trade);
   saveTrades();
+  // Persist this individual trade to Firestore immediately.
+  if (typeof Auth !== 'undefined' && !Auth.isGuest()) {
+    Auth.saveActiveTrade(trade).catch(e => console.warn('[enterTrade Firestore]', e));
+  }
   renderTradeMonitors();
   ensureMonitorRunning();
 
@@ -793,6 +797,10 @@ function closeTrade(tradeId, exitPrice, reason) {
   saveTradeToHistory(trade, ep, reason || 'manual');
   state.activeTrades.splice(idx, 1);
   saveTrades();
+  // Remove the closed trade from Firestore activeTrades subcollection.
+  if (typeof Auth !== 'undefined' && !Auth.isGuest()) {
+    Auth.deleteActiveTrade(trade.id).catch(e => console.warn('[closeTrade Firestore]', e));
+  }
 
   // Remove only the closed trade's card — rebuilding all cards via renderTradeMonitors()
   // would reset every remaining card to "Analyzing…" until the next 30 s monitor tick.
@@ -813,11 +821,10 @@ function closeTrade(tradeId, exitPrice, reason) {
 }
 
 function saveTrades() {
+  // Persist to localStorage (used by loadTrades() on page load and guest mode).
+  // Individual Firestore writes (saveActiveTrade / deleteActiveTrade) are called
+  // directly from enterTrade() and closeTrade() for atomic per-document updates.
   localStorage.setItem(STORAGE_KEYS.ACTIVE_TRADES, JSON.stringify(state.activeTrades));
-  // Cloud sync: persist to Firestore when the user is authenticated.
-  if (typeof Auth !== 'undefined' && !Auth.isGuest()) {
-    Auth.saveActiveTrades(state.activeTrades).catch(e => console.warn('[saveTrades cloud]', e));
-  }
 }
 
 function loadTrades() {
@@ -1122,9 +1129,9 @@ function saveTradeToHistory(trade, exitPrice, reason, notes) {
   history.unshift(record);
   const trimmedHistory = history.slice(0, STRATEGY.MAX_HISTORY);
   localStorage.setItem(STORAGE_KEYS.HISTORY, JSON.stringify(trimmedHistory));
-  // Cloud sync: persist history to Firestore when the user is authenticated.
+  // Save this individual history entry to Firestore (atomic per-document write).
   if (typeof Auth !== 'undefined' && !Auth.isGuest()) {
-    Auth.saveTradeHistory(trimmedHistory).catch(e => console.warn('[saveHistory cloud]', e));
+    Auth.saveHistoryEntry(record).catch(e => console.warn('[saveHistory Firestore]', e));
   }
 }
 
@@ -1138,9 +1145,9 @@ function getTradeHistory() {
 function clearTradeHistory() {
   if (!confirm('Delete all trade history? This cannot be undone.')) return;
   localStorage.removeItem(STORAGE_KEYS.HISTORY);
-  // Cloud sync: clear Firestore history when the user is authenticated.
+  // Delete all history docs from Firestore subcollection.
   if (typeof Auth !== 'undefined' && !Auth.isGuest()) {
-    Auth.saveTradeHistory([]).catch(e => console.warn('[clearHistory cloud]', e));
+    Auth.clearAllHistory().catch(e => console.warn('[clearHistory Firestore]', e));
   }
   renderTradeHistory();
 }

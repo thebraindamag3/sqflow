@@ -1,4 +1,27 @@
 // ============================================================
+// Implementation plan for #12 — Persist Trades & History in Firestore
+//
+// Firestore structure (per authenticated user):
+//   users/{uid}/activeTrades/{tradeId}  — one document per open trade
+//   users/{uid}/history/{tradeId}       — one document per closed trade
+//
+// Files modified:
+//   auth.js  — _syncFromCloud(), saveActiveTrade(), deleteActiveTrade(),
+//              saveHistoryEntry(), _migrateGuestData(), _batchWriteSubcollection()
+//   app.js   — enterTrade() (saveActiveTrade), closeTrade() (deleteActiveTrade),
+//              saveTradeToHistory() (saveHistoryEntry), clearTradeHistory() (clearAllHistory)
+//
+// How it works:
+//   Login  → onAuthStateChanged → _syncFromCloud() queries both subcollections →
+//            writes results to localStorage → loadTrades()/render*() refresh UI.
+//   Create → enterTrade() → Auth.saveActiveTrade(trade) writes to activeTrades/{id}.
+//   Close  → closeTrade() → Auth.deleteActiveTrade(id) removes from activeTrades;
+//            saveTradeToHistory() → Auth.saveHistoryEntry(entry) adds to history/{id}.
+//   Logout → clear in-memory state only — Firestore data is never deleted on logout.
+//   Guest  → data stays in localStorage only; no Firestore writes.
+// ============================================================
+
+// ============================================================
 // SqFlow — Authentication Module
 // Firebase Auth + Firestore
 //
@@ -248,36 +271,50 @@ const Auth = (() => {
   }
 
   // ── Firestore cloud sync ────────────────────────────────────
-  // Loads trade data from Firestore and updates localStorage,
-  // then triggers app re-render. Authenticated users have their
-  // data available across devices and deploys.
+  // Loads trade data from Firestore subcollections and updates app state.
+  //
+  // Firestore structure (per user):
+  //   users/{uid}/activeTrades/{tradeId}  — one document per open trade
+  //   users/{uid}/history/{tradeId}       — one document per closed trade
   //
   // Strategy:
-  //   1. Firestore is the source of truth — if documents exist, always use them.
-  //   2. If Firestore has no documents, check whether localStorage is already
-  //      tagged for this same user (sqFlow_userId). If so, the user's trades
-  //      never made it to Firestore (e.g. failed write) — keep them and sync
-  //      them up to Firestore now. If a different UID is stored, clear the
-  //      stale data so it cannot bleed into the new session.
-  //   3. On any Firestore read failure, apply the same UID-match check so that
-  //      a network hiccup does not silently wipe the user's localStorage trades.
+  //   1. Query both subcollections via getDocs().
+  //   2. If Firestore returns any docs, they are the source of truth — write
+  //      them to localStorage and set app state.
+  //   3. If Firestore is empty and localStorage is tagged for this same UID,
+  //      the user has local trades that never made it to Firestore (e.g. a
+  //      failed write). Preserve them and sync them up now.
+  //   4. If a different UID is stored in localStorage, wipe stale data so it
+  //      cannot bleed into the new session.
+  //   5. On Firestore read failure, keep localStorage if it belongs to this
+  //      user; otherwise clear it to avoid data leakage.
   async function _syncFromCloud() {
     if (!_db || !_user) return;
     const uid       = _user.uid;
     const storedUid = localStorage.getItem(_AUTH_KEYS.USER_ID);
 
+    // Show loading indicator while we fetch from Firestore.
+    _setTradesLoading(true);
+
     try {
-      const [tradesDoc, histDoc] = await Promise.all([
-        _db.collection('users').doc(uid).collection('state').doc('activeTrades').get(),
-        _db.collection('users').doc(uid).collection('state').doc('tradeHistory').get(),
+      const [tradesSnap, histSnap] = await Promise.all([
+        _db.collection('users').doc(uid).collection('activeTrades').get(),
+        _db.collection('users').doc(uid).collection('history').get(),
       ]);
 
-      if (tradesDoc.exists || histDoc.exists) {
-        // Firestore has data — it is the source of truth.
-        localStorage.setItem('sqFlow_activeTrades', JSON.stringify(tradesDoc.exists ? (tradesDoc.data().trades || []) : []));
-        localStorage.setItem('sqFlow_tradeHistory',  JSON.stringify(histDoc.exists  ? (histDoc.data().history  || []) : []));
+      const hasFirestoreData = !tradesSnap.empty || !histSnap.empty;
+
+      if (hasFirestoreData) {
+        // Firestore is the source of truth — rebuild localStorage from it.
+        const trades  = tradesSnap.docs.map(d => d.data());
+        const history = histSnap.docs.map(d => d.data())
+          .sort((a, b) => (b.exitTime || 0) - (a.exitTime || 0))
+          .slice(0, 200);
+
+        localStorage.setItem('sqFlow_activeTrades', JSON.stringify(trades));
+        localStorage.setItem('sqFlow_tradeHistory',  JSON.stringify(history));
       } else {
-        // No Firestore documents yet for this user.
+        // No Firestore documents for this user yet.
         if (storedUid === uid) {
           // Same user: localStorage may have trades that were never written to
           // Firestore (e.g. a previous write failed). Preserve them and sync up.
@@ -285,16 +322,14 @@ const Auth = (() => {
           const localHistory = _parseLs('sqFlow_tradeHistory',  []);
           if (localTrades.length > 0 || localHistory.length > 0) {
             console.log('[SqFlow Auth] Syncing local trades to Firestore (was never persisted).');
-            await Promise.all([
-              _db.collection('users').doc(uid).collection('state').doc('activeTrades')
-                 .set({ trades: localTrades, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }),
-              _db.collection('users').doc(uid).collection('state').doc('tradeHistory')
-                 .set({ history: localHistory, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }),
-            ]).catch(e => console.warn('[SqFlow Auth] Sync-back to Firestore failed:', e));
+            await _batchWriteSubcollection(uid, 'activeTrades', localTrades, 'id')
+              .catch(e => console.warn('[SqFlow Auth] Sync-back activeTrades failed:', e));
+            await _batchWriteSubcollection(uid, 'history', localHistory, 'id')
+              .catch(e => console.warn('[SqFlow Auth] Sync-back history failed:', e));
           }
           // localStorage is already correct — no overwrite needed.
         } else {
-          // Different (or no) previous user — clear stale data to prevent bleeding.
+          // Different (or no) previous user — clear stale data.
           localStorage.setItem('sqFlow_activeTrades', JSON.stringify([]));
           localStorage.setItem('sqFlow_tradeHistory',  JSON.stringify([]));
         }
@@ -303,29 +338,29 @@ const Auth = (() => {
       if (e.code === 'permission-denied') {
         console.error(
           '[SqFlow Auth] Firestore permission denied on sync. ' +
-          'Go to Firebase Console → Firestore Database → Rules and deploy the rules from firestore.rules ' +
-          '(or run: firebase deploy --only firestore:rules). ' +
+          'Deploy firestore.rules (firebase deploy --only firestore:rules). ' +
           'Falling back to localStorage for this session.'
         );
       } else {
         console.error('[SqFlow Auth] Cloud sync failed:', e);
       }
-      // On error, keep localStorage if it belongs to this user; clear it otherwise.
+      // On error, keep localStorage if it belongs to this user; clear otherwise.
       if (storedUid !== uid) {
         localStorage.setItem('sqFlow_activeTrades', JSON.stringify([]));
         localStorage.setItem('sqFlow_tradeHistory',  JSON.stringify([]));
       }
+    } finally {
+      _setTradesLoading(false);
     }
 
     // Tag localStorage so returning logins can detect same-user data.
     localStorage.setItem(_AUTH_KEYS.USER_ID, uid);
 
-    // Ensure the schema version is set so that loadTrades() does not run the
-    // v1→v2 migration and accidentally wipe the data we just restored from
-    // Firestore (migration runs whenever sqFlow_schemaVersion is not '2').
+    // Set schema version so loadTrades() skips the v1→v2 migration,
+    // which would otherwise wipe the data we just restored from Firestore.
     localStorage.setItem('sqFlow_schemaVersion', '2');
 
-    // Reload app data from updated localStorage
+    // Reload app data from updated localStorage.
     if (typeof loadTrades          === 'function') loadTrades();
     if (typeof renderTradeMonitors  === 'function') renderTradeMonitors();
     if (typeof renderTradeHistory   === 'function') renderTradeHistory();
@@ -335,7 +370,20 @@ const Auth = (() => {
     }
   }
 
-  // Migrates in-memory guest session data to Firestore,
+  // Helper: write an array of objects to a Firestore subcollection,
+  // using each item's [idField] as the document ID.
+  async function _batchWriteSubcollection(uid, subcollection, items, idField) {
+    if (!_db || !items.length) return;
+    const colRef = _db.collection('users').doc(uid).collection(subcollection);
+    const batch  = _db.batch();
+    items.forEach(item => {
+      const docId = String(item[idField]);
+      batch.set(colRef.doc(docId), item);
+    });
+    await batch.commit();
+  }
+
+  // Migrates in-memory guest session data to Firestore subcollections,
   // merging with any existing cloud data before discarding the guest session.
   async function _migrateGuestData() {
     if (!_db || !_user) return;
@@ -345,13 +393,13 @@ const Auth = (() => {
       if (!guestTrades.length && !guestHistory.length) return;
 
       const uid = _user.uid;
-      const [tradesDoc, histDoc] = await Promise.all([
-        _db.collection('users').doc(uid).collection('state').doc('activeTrades').get(),
-        _db.collection('users').doc(uid).collection('state').doc('tradeHistory').get(),
+      const [tradesSnap, histSnap] = await Promise.all([
+        _db.collection('users').doc(uid).collection('activeTrades').get(),
+        _db.collection('users').doc(uid).collection('history').get(),
       ]);
 
-      const cloudTrades  = tradesDoc.exists ? (tradesDoc.data().trades  || []) : [];
-      const cloudHistory = histDoc.exists   ? (histDoc.data().history   || []) : [];
+      const cloudTrades  = tradesSnap.docs.map(d => d.data());
+      const cloudHistory = histSnap.docs.map(d => d.data());
 
       // Guest data takes precedence; cloud items are appended if not already present.
       const mergedTrades  = [
@@ -364,10 +412,8 @@ const Auth = (() => {
       ].slice(0, 200);
 
       await Promise.all([
-        _db.collection('users').doc(uid).collection('state').doc('activeTrades')
-           .set({ trades: mergedTrades, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }),
-        _db.collection('users').doc(uid).collection('state').doc('tradeHistory')
-           .set({ history: mergedHistory, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }),
+        _batchWriteSubcollection(uid, 'activeTrades', mergedTrades, 'id'),
+        _batchWriteSubcollection(uid, 'history', mergedHistory, 'id'),
       ]);
       console.log('[SqFlow Auth] Guest session data migrated to Firestore.');
     } catch (e) {
@@ -463,38 +509,156 @@ const Auth = (() => {
   }
 
   // ── Firestore write helpers ─────────────────────────────────
+  // Each trade/history entry is stored as its own Firestore document:
+  //   users/{uid}/activeTrades/{tradeId}
+  //   users/{uid}/history/{entryId}
+  //
+  // This makes create/delete atomic per-trade and avoids storing large arrays
+  // in a single document, which can hit Firestore's 1 MB document size limit.
 
-  async function saveActiveTrades(trades) {
+  // Save (upsert) a single open trade to the activeTrades subcollection.
+  async function saveActiveTrade(trade) {
     if (!_db || !_user) return false;
     try {
       await _db.collection('users').doc(_user.uid)
-               .collection('state').doc('activeTrades')
-               .set({ trades, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+               .collection('activeTrades').doc(String(trade.id))
+               .set(trade);
       return true;
     } catch (e) {
       if (e.code === 'permission-denied') {
-        console.error('[SqFlow Auth] saveActiveTrades: Firestore permission denied. Deploy firestore.rules — trades saved to localStorage only.');
+        console.error('[SqFlow Auth] saveActiveTrade: Firestore permission denied. Deploy firestore.rules.');
       } else {
-        console.error('[SqFlow Auth] saveActiveTrades:', e);
+        console.error('[SqFlow Auth] saveActiveTrade:', e);
       }
       return false;
     }
   }
 
-  async function saveTradeHistory(history) {
+  // Remove a single trade from the activeTrades subcollection (on close/stop-loss/TP).
+  async function deleteActiveTrade(tradeId) {
     if (!_db || !_user) return false;
     try {
       await _db.collection('users').doc(_user.uid)
-               .collection('state').doc('tradeHistory')
-               .set({ history, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+               .collection('activeTrades').doc(String(tradeId))
+               .delete();
+      return true;
+    } catch (e) {
+      console.error('[SqFlow Auth] deleteActiveTrade:', e);
+      return false;
+    }
+  }
+
+  // Save a single closed-trade record to the history subcollection.
+  async function saveHistoryEntry(entry) {
+    if (!_db || !_user) return false;
+    try {
+      await _db.collection('users').doc(_user.uid)
+               .collection('history').doc(String(entry.id))
+               .set(entry);
       return true;
     } catch (e) {
       if (e.code === 'permission-denied') {
-        console.error('[SqFlow Auth] saveTradeHistory: Firestore permission denied. Deploy firestore.rules — history saved to localStorage only.');
+        console.error('[SqFlow Auth] saveHistoryEntry: Firestore permission denied. Deploy firestore.rules.');
       } else {
-        console.error('[SqFlow Auth] saveTradeHistory:', e);
+        console.error('[SqFlow Auth] saveHistoryEntry:', e);
       }
       return false;
+    }
+  }
+
+  // Bulk-save all active trades (used on guest→account migration and fallback sync).
+  async function saveActiveTrades(trades) {
+    if (!_db || !_user) return false;
+    try {
+      await _batchWriteSubcollection(_user.uid, 'activeTrades', trades, 'id');
+      return true;
+    } catch (e) {
+      console.error('[SqFlow Auth] saveActiveTrades (bulk):', e);
+      return false;
+    }
+  }
+
+  // Bulk-save all history entries (used on guest→account migration and fallback sync).
+  async function saveTradeHistory(history) {
+    if (!_db || !_user) return false;
+    try {
+      await _batchWriteSubcollection(_user.uid, 'history', history, 'id');
+      return true;
+    } catch (e) {
+      console.error('[SqFlow Auth] saveTradeHistory (bulk):', e);
+      return false;
+    }
+  }
+
+  // Delete all documents from the user's history subcollection.
+  // Called when the user explicitly clears their trade history.
+  async function clearAllHistory() {
+    if (!_db || !_user) return false;
+    try {
+      const snap  = await _db.collection('users').doc(_user.uid).collection('history').get();
+      if (snap.empty) return true;
+      const batch = _db.batch();
+      snap.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+      return true;
+    } catch (e) {
+      console.error('[SqFlow Auth] clearAllHistory:', e);
+      return false;
+    }
+  }
+
+  // Delete all documents from the user's activeTrades subcollection.
+  // Used when the user account needs a full reset of active trades.
+  async function clearAllActiveTrades() {
+    if (!_db || !_user) return false;
+    try {
+      const snap  = await _db.collection('users').doc(_user.uid).collection('activeTrades').get();
+      if (snap.empty) return true;
+      const batch = _db.batch();
+      snap.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+      return true;
+    } catch (e) {
+      console.error('[SqFlow Auth] clearAllActiveTrades:', e);
+      return false;
+    }
+  }
+
+  // ── Loading state for trade tabs ────────────────────────────
+  // Shows a subtle spinner overlay on the Active Trades and History tabs
+  // while Firestore data is being fetched after login. This prevents the
+  // user from seeing empty tabs momentarily before data loads.
+  function _setTradesLoading(loading) {
+    // Insert or remove a loading overlay on the trades-monitor-list and history containers.
+    const LOADING_ID = 'sqflow-trades-loading';
+    if (loading) {
+      if (document.getElementById(LOADING_ID)) return;
+      const overlay = document.createElement('div');
+      overlay.id = LOADING_ID;
+      overlay.style.cssText = [
+        'position:fixed', 'inset:0', 'display:flex',
+        'align-items:center', 'justify-content:center',
+        'background:rgba(10,10,15,0.55)', 'z-index:9000',
+        'backdrop-filter:blur(2px)',
+      ].join(';');
+      overlay.innerHTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;gap:12px;color:#c9d1d9;">
+          <div style="width:36px;height:36px;border:3px solid #30363d;border-top-color:#58a6ff;
+               border-radius:50%;animation:sqflow-spin 0.75s linear infinite;"></div>
+          <span style="font-size:13px;opacity:0.8;">Loading your trades…</span>
+        </div>
+      `;
+      // Inject keyframes once
+      if (!document.getElementById('sqflow-spin-style')) {
+        const style = document.createElement('style');
+        style.id = 'sqflow-spin-style';
+        style.textContent = '@keyframes sqflow-spin{to{transform:rotate(360deg)}}';
+        document.head.appendChild(style);
+      }
+      document.body.appendChild(overlay);
+    } else {
+      const overlay = document.getElementById(LOADING_ID);
+      if (overlay) overlay.remove();
     }
   }
 
@@ -789,8 +953,16 @@ const Auth = (() => {
     getCurrentUser:  ()   => _user,
     isReady:         ()   => _ready,
     onReady:         (fn) => { if (_ready) fn({ user: _user, isGuest: _guest }); else _cbQueue.push(fn); },
+    // Per-trade Firestore helpers (preferred — atomic operations per document)
+    saveActiveTrade,
+    deleteActiveTrade,
+    saveHistoryEntry,
+    // Bulk helpers (used for migration / fallback sync)
     saveActiveTrades,
     saveTradeHistory,
+    // Clear all helpers (for user-initiated resets)
+    clearAllHistory,
+    clearAllActiveTrades,
   };
 })();
 
