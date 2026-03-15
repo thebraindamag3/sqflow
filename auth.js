@@ -140,6 +140,7 @@ const Auth = (() => {
   let _cbQueue = [];
   let _mode    = 'signin';   // 'signin' | 'register'
   let _modal   = null;
+  let _wasExplicitGuest = false;  // true only when continueAsGuest() was called this session
 
   // ── Initialization ─────────────────────────────────────────
   async function _init() {
@@ -187,14 +188,17 @@ const Auth = (() => {
       // internally via its SDK. The access token is short-lived and the
       // refresh token is managed securely by the Firebase SDK.
       _auth.onAuthStateChanged(async user => {
-        const wasGuest = _guest && !_user;
         const prevUser = _user;  // capture before update to detect explicit logouts
         _user  = user;
         _guest = !user;
         _ready = true;
 
-        if (user && wasGuest) {
+        if (user && _wasExplicitGuest) {
           // Mid-session guest → account conversion: migrate session data first.
+          // Only runs when the user explicitly chose "Continue as Guest" this session,
+          // not on every sign-in after logout or page reload (which would risk migrating
+          // a previous authenticated user's leftover localStorage data).
+          _wasExplicitGuest = false;
           await _migrateGuestData();
         }
 
@@ -372,6 +376,7 @@ const Auth = (() => {
 
   function continueAsGuest() {
     _guest = true;
+    _wasExplicitGuest = true;  // allows data migration if user later signs in this session
     _hideAuthModal();
     _renderGuestBanner(true);
     _renderHeaderUser(null);
@@ -379,6 +384,16 @@ const Auth = (() => {
 
   async function signOut() {
     if (_auth && _user) {
+      // Eagerly clear local trade data BEFORE calling _auth.signOut() so the
+      // cleanup is guaranteed regardless of when onAuthStateChanged fires.
+      // Without this, a race condition allows the next user's session to
+      // inherit or migrate the previous user's localStorage trades.
+      localStorage.removeItem('sqFlow_activeTrades');
+      localStorage.removeItem('sqFlow_tradeHistory');
+      if (typeof state              !== 'undefined') state.activeTrades = [];
+      if (typeof stopTradeMonitor    === 'function') stopTradeMonitor();
+      if (typeof renderTradeMonitors === 'function') renderTradeMonitors();
+      if (typeof renderTradeHistory  === 'function') renderTradeHistory();
       try { await _auth.signOut(); } catch (_) {}
     }
     _guest = true;
