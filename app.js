@@ -1780,6 +1780,7 @@ function switchTab(tab) {
   el('panel-activetrades').style.display = tab === 'activetrades' ? '' : 'none';
   el('panel-history').style.display      = tab === 'history'      ? '' : 'none';
   el('panel-strategy').style.display     = tab === 'strategy'     ? '' : 'none';
+  el('panel-about').style.display        = tab === 'about'        ? '' : 'none';
 
   // Hide asset selector on non-dashboard tabs — prevents confusing pair-switch
   // flicker in Active Trades and History where the selected pair is irrelevant.
