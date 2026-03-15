@@ -378,6 +378,34 @@ html, body {
   opacity: 0.5;
 }
 
+/* Coming-soon: futures & FX disabled until fully supported */
+.asset-item.soon {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.asset-item.soon:hover {
+  background: transparent;
+}
+.asset-item.soon .asset-item-symbol,
+.asset-item.soon .asset-item-name {
+  color: var(--text-muted);
+}
+
+.soon-badge {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: var(--bg-card-hover);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 5px;
+  line-height: 1;
+}
+
 .asset-item-symbol {
   font-size: 12px;
   font-weight: 700;
