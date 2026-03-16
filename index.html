@@ -64,6 +64,7 @@
         <span class="tab-badge" id="history-tab-badge" style="display:none" aria-label="Trade count"></span>
       </button>
       <button class="tab-nav-btn" data-tab="strategy" aria-selected="false" role="tab">Strategy</button>
+      <button class="tab-nav-btn" data-tab="bugreport" aria-selected="false" role="tab">Report a Bug</button>
       <button class="tab-nav-btn" data-tab="about" aria-selected="false" role="tab">About</button>
     </nav>
 
@@ -681,6 +682,202 @@
           <strong>Disclaimer:</strong> SqFlow is an informational tool only. It does not constitute financial advice. All trading involves risk. Past signal performance does not guarantee future results. Always use proper risk management and never risk more than you can afford to lose.
         </div>
 
+      </main>
+    </div>
+
+    <!-- BUG REPORT PANEL -->
+    <div id="panel-bugreport" style="display:none" role="tabpanel" aria-label="Report a Bug">
+      <main class="main bugreport-main">
+        <section class="bugreport-card" aria-label="Bug report form">
+
+          <div class="bugreport-header">
+            <h1 class="bugreport-title">Report a Bug</h1>
+            <p class="bugreport-subtitle">
+              Found something broken? Clear reports with repro steps and screenshots
+              get fixed faster. All fields marked <span class="bugreport-required-legend" aria-hidden="true">*</span> are required.
+            </p>
+          </div>
+
+          <form id="bugreport-form" class="bugreport-form" novalidate>
+
+            <!-- Bug title -->
+            <div class="bugreport-field">
+              <label class="bugreport-label" for="bug-title">
+                Bug title <span class="bugreport-required" aria-hidden="true">*</span>
+              </label>
+              <input
+                class="bugreport-input"
+                type="text"
+                id="bug-title"
+                name="title"
+                placeholder="Short summary of what went wrong"
+                autocomplete="off"
+                maxlength="200"
+              />
+              <span class="bugreport-field-error" id="bug-title-error" role="alert" aria-live="polite"></span>
+            </div>
+
+            <!-- Description -->
+            <div class="bugreport-field">
+              <label class="bugreport-label" for="bug-description">
+                Description <span class="bugreport-required" aria-hidden="true">*</span>
+              </label>
+              <textarea
+                class="bugreport-textarea"
+                id="bug-description"
+                name="description"
+                placeholder="Describe the bug — what happened, where, and under what conditions"
+                rows="4"
+                maxlength="2000"
+              ></textarea>
+              <span class="bugreport-field-error" id="bug-description-error" role="alert" aria-live="polite"></span>
+            </div>
+
+            <!-- Steps to reproduce -->
+            <div class="bugreport-field">
+              <label class="bugreport-label" for="bug-steps">
+                Steps to reproduce <span class="bugreport-optional">(optional)</span>
+              </label>
+              <textarea
+                class="bugreport-textarea"
+                id="bug-steps"
+                name="steps_to_reproduce"
+                placeholder="1. Go to…&#10;2. Click on…&#10;3. See error"
+                rows="3"
+                maxlength="2000"
+              ></textarea>
+            </div>
+
+            <!-- Expected / Actual behaviour -->
+            <div class="bugreport-field-row">
+              <div class="bugreport-field">
+                <label class="bugreport-label" for="bug-expected">
+                  Expected behavior <span class="bugreport-optional">(optional)</span>
+                </label>
+                <textarea
+                  class="bugreport-textarea bugreport-textarea--sm"
+                  id="bug-expected"
+                  name="expected_behavior"
+                  placeholder="What should have happened?"
+                  rows="2"
+                  maxlength="500"
+                ></textarea>
+              </div>
+              <div class="bugreport-field">
+                <label class="bugreport-label" for="bug-actual">
+                  Actual behavior <span class="bugreport-optional">(optional)</span>
+                </label>
+                <textarea
+                  class="bugreport-textarea bugreport-textarea--sm"
+                  id="bug-actual"
+                  name="actual_behavior"
+                  placeholder="What actually happened?"
+                  rows="2"
+                  maxlength="500"
+                ></textarea>
+              </div>
+            </div>
+
+            <!-- Reporter name / email -->
+            <div class="bugreport-field-row">
+              <div class="bugreport-field">
+                <label class="bugreport-label" for="bug-reporter-name">
+                  Your name <span class="bugreport-optional">(optional)</span>
+                </label>
+                <input
+                  class="bugreport-input"
+                  type="text"
+                  id="bug-reporter-name"
+                  name="reporter_name"
+                  placeholder="Name or alias"
+                  autocomplete="name"
+                  maxlength="100"
+                />
+              </div>
+              <div class="bugreport-field">
+                <label class="bugreport-label" for="bug-reporter-email">
+                  Email for follow-up <span class="bugreport-optional">(optional)</span>
+                </label>
+                <input
+                  class="bugreport-input"
+                  type="email"
+                  id="bug-reporter-email"
+                  name="reporter_email"
+                  placeholder="you@example.com"
+                  autocomplete="email"
+                  maxlength="200"
+                />
+              </div>
+            </div>
+
+            <!-- Screenshot upload -->
+            <div class="bugreport-field">
+              <label class="bugreport-label" for="bug-screenshot">
+                Screenshot <span class="bugreport-optional">(optional)</span>
+              </label>
+              <p class="bugreport-helper">A screenshot helps reproduce the issue faster. You'll attach it to the email that opens on submit.</p>
+              <div class="bugreport-upload-area" id="bugreport-upload-area" role="button" tabindex="0" aria-label="Upload screenshot — click or drag and drop">
+                <input
+                  class="bugreport-file-input"
+                  type="file"
+                  id="bug-screenshot"
+                  name="screenshot"
+                  accept="image/png,image/jpeg,image/gif,image/webp,image/bmp"
+                  aria-label="Choose screenshot file"
+                />
+                <div class="bugreport-upload-inner" id="bugreport-upload-inner">
+                  <svg class="bugreport-upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                    <path d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                  <span class="bugreport-upload-label">Click to upload or drag &amp; drop</span>
+                  <span class="bugreport-upload-hint">PNG, JPG, GIF, WebP — up to 5 MB</span>
+                </div>
+                <div class="bugreport-preview" id="bugreport-preview" style="display:none">
+                  <img class="bugreport-preview-img" id="bugreport-preview-img" src="" alt="Screenshot preview" />
+                  <div class="bugreport-preview-meta">
+                    <span class="bugreport-preview-name" id="bugreport-preview-name"></span>
+                    <button type="button" class="bugreport-remove-btn" id="bugreport-remove-btn" aria-label="Remove screenshot">
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Submit -->
+            <div class="bugreport-submit-row">
+              <button type="submit" class="bugreport-submit-btn" id="bugreport-submit-btn">
+                <span id="bugreport-btn-label">Send Bug Report</span>
+                <svg class="bugreport-spinner" id="bugreport-spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="display:none">
+                  <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" stroke-linecap="round"/>
+                </svg>
+              </button>
+            </div>
+
+            <!-- Success state -->
+            <div class="bugreport-status bugreport-status--success" id="bugreport-success" style="display:none" role="alert" aria-live="polite">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <div>
+                <strong>Report sent.</strong>
+                <p>Your email client should have opened with the report pre-filled. Thanks for taking the time — it helps make things better.</p>
+              </div>
+            </div>
+
+            <!-- Error state -->
+            <div class="bugreport-status bugreport-status--error" id="bugreport-error-state" style="display:none" role="alert" aria-live="polite">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <div>
+                <strong>Couldn't open email client.</strong>
+                <p>Please email <a class="bugreport-direct-link" href="mailto:sqlflow0@gmail.com">sqlflow0@gmail.com</a> directly and describe the issue.</p>
+              </div>
+            </div>
+
+          </form>
+        </section>
       </main>
     </div>
 
