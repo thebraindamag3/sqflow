@@ -2463,12 +2463,23 @@ document.addEventListener('click', function (e) {
     emailjs.init({ publicKey: emailjsConfig.publicKey });
   }
 
-  // ── Inject contextual metadata into a hidden form field ─────
-  // emailjs.sendForm() picks up all named inputs in the form,
-  // including this hidden one that carries browser/app context.
-  var metaField = document.getElementById('bug-context-meta');
-  if (metaField) {
-    metaField.value = getContext();
+  // ── Upload screenshot to Firebase Storage ──────────────────
+  // Returns a Promise that resolves to the public download URL,
+  // or rejects on failure. Returns null immediately if no file given.
+  function uploadScreenshot(file) {
+    if (!file) return Promise.resolve(null);
+    try {
+      var storage = firebase.storage();
+      var ts       = Date.now();
+      var rand     = Math.random().toString(36).slice(2, 8);
+      var safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      var ref      = storage.ref('bug-reports/' + ts + '-' + rand + '-' + safeName);
+      return ref.put(file).then(function (snapshot) {
+        return snapshot.ref.getDownloadURL();
+      });
+    } catch (err) {
+      return Promise.reject(err);
+    }
   }
 
   // ── Form submit handler ─────────────────────────────────────
@@ -2479,17 +2490,22 @@ document.addEventListener('click', function (e) {
   var successEl = document.getElementById('bugreport-success');
   var errorEl   = document.getElementById('bugreport-error-state');
 
-  function setSubmitting(on) {
+  function setBtnState(label, busy) {
     if (!submitBtn) return;
-    submitBtn.disabled = on;
-    if (btnLabel) btnLabel.textContent = on ? 'Sending…' : 'Send Bug Report';
-    if (spinner)  spinner.style.display = on ? '' : 'none';
-    submitBtn.classList.toggle('bugreport-submit-btn--loading', on);
+    submitBtn.disabled = busy;
+    if (btnLabel) btnLabel.textContent = label;
+    if (spinner)  spinner.style.display = busy ? '' : 'none';
+    submitBtn.classList.toggle('bugreport-submit-btn--loading', busy);
   }
 
   function hideStatus() {
     if (successEl) successEl.style.display = 'none';
     if (errorEl)   errorEl.style.display   = 'none';
+  }
+
+  function getFieldVal(id) {
+    var el = document.getElementById(id);
+    return el ? (el.value || '').trim() : '';
   }
 
   if (form) {
@@ -2503,9 +2519,6 @@ document.addEventListener('click', function (e) {
         return;
       }
 
-      // Refresh metadata at submit time so it reflects the current state
-      if (metaField) metaField.value = getContext();
-
       if (!emailjsConfig.serviceId || !emailjsConfig.templateId || typeof emailjs === 'undefined') {
         // EmailJS not configured — surface a clear error
         if (errorEl) {
@@ -2516,18 +2529,41 @@ document.addEventListener('click', function (e) {
         return;
       }
 
-      setSubmitting(true);
+      // Step 1: upload screenshot if present
+      var fileToUpload = screenshotFile;
+      if (fileToUpload) {
+        setBtnState('Uploading screenshot…', true);
+      } else {
+        setBtnState('Sending…', true);
+      }
 
-      emailjs.sendForm(emailjsConfig.serviceId, emailjsConfig.templateId, form)
+      uploadScreenshot(fileToUpload)
+        .then(function (screenshotUrl) {
+          // Step 2: send report via emailjs.send() with all fields + screenshot_url
+          setBtnState('Sending…', true);
+          return emailjs.send(emailjsConfig.serviceId, emailjsConfig.templateId, {
+            title:              getFieldVal('bug-title'),
+            description:        getFieldVal('bug-description'),
+            steps_to_reproduce: getFieldVal('bug-steps'),
+            expected_behavior:  getFieldVal('bug-expected'),
+            actual_behavior:    getFieldVal('bug-actual'),
+            reporter_name:      getFieldVal('bug-reporter-name'),
+            reporter_email:     getFieldVal('bug-reporter-email'),
+            context_metadata:   getContext(),
+            screenshot_url:     screenshotUrl || '',
+            page_url:           window.location.href,
+            browser_info:       navigator.userAgent,
+            time:               new Date().toISOString(),
+          });
+        })
         .then(function () {
-          setSubmitting(false);
+          setBtnState('Send Bug Report', false);
           if (successEl) successEl.style.display = '';
           form.reset();
           clearScreenshot();
-          if (metaField) metaField.value = getContext();
         })
         .catch(function () {
-          setSubmitting(false);
+          setBtnState('Send Bug Report', false);
           if (errorEl) errorEl.style.display = '';
         });
     });
