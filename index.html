@@ -815,7 +815,7 @@
               <label class="bugreport-label" for="bug-screenshot">
                 Screenshot <span class="bugreport-optional">(optional)</span>
               </label>
-              <p class="bugreport-helper">A screenshot helps reproduce the issue faster. You'll attach it to the email that opens on submit.</p>
+              <p class="bugreport-helper">A screenshot helps reproduce the issue faster. It will be included as an attachment in the report (PNG, JPG, GIF, WebP — keep under 50 KB for best delivery).</p>
               <div class="bugreport-upload-area" id="bugreport-upload-area" role="button" tabindex="0" aria-label="Upload screenshot — click or drag and drop">
                 <input
                   class="bugreport-file-input"
@@ -844,6 +844,9 @@
               </div>
             </div>
 
+            <!-- Hidden: contextual metadata injected by app.js at submit time -->
+            <input type="hidden" id="bug-context-meta" name="context_metadata" value="" />
+
             <!-- Submit -->
             <div class="bugreport-submit-row">
               <button type="submit" class="bugreport-submit-btn" id="bugreport-submit-btn">
@@ -861,7 +864,7 @@
               </svg>
               <div>
                 <strong>Report sent.</strong>
-                <p>Your email client should have opened with the report pre-filled. Thanks for taking the time — it helps make things better.</p>
+                <p>Your bug report was delivered successfully. Thanks for taking the time — it helps make things better.</p>
               </div>
             </div>
 
@@ -871,8 +874,8 @@
                 <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
               <div>
-                <strong>Couldn't open email client.</strong>
-                <p>Please email <a class="bugreport-direct-link" href="mailto:sqlflow0@gmail.com">sqlflow0@gmail.com</a> directly and describe the issue.</p>
+                <strong>Failed to send.</strong>
+                <p>Something went wrong. Please try again or email <a class="bugreport-direct-link" href="mailto:sqlflow0@gmail.com">sqlflow0@gmail.com</a> directly.</p>
               </div>
             </div>
 
@@ -994,8 +997,11 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
+  <!-- EmailJS browser SDK — used for bug report form submission -->
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+
   <!-- Auth module must load before app.js so Auth global is available -->
   <script src="auth.js?v=2"></script>
-  <script src="app.js?v=13"></script>
+  <script src="app.js?v=14"></script>
 </body>
 </html>
