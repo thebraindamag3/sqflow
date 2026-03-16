@@ -2455,38 +2455,20 @@ document.addEventListener('click', function (e) {
     return lines.join('\n');
   }
 
-  // ── Build mailto URL ────────────────────────────────────────
-  function buildMailto(fields) {
-    var subject = '[Bug Report] ' + (fields.title || '(no title)');
-    var body = [
-      '== Bug Title ==',
-      fields.title || '',
-      '',
-      '== Description ==',
-      fields.description || '',
-    ];
-    if (fields.steps) {
-      body.push('', '== Steps to Reproduce ==', fields.steps);
-    }
-    if (fields.expected) {
-      body.push('', '== Expected Behavior ==', fields.expected);
-    }
-    if (fields.actual) {
-      body.push('', '== Actual Behavior ==', fields.actual);
-    }
-    if (fields.name) {
-      body.push('', '== Reporter ==', fields.name + (fields.email ? ' <' + fields.email + '>' : ''));
-    } else if (fields.email) {
-      body.push('', '== Reporter Email ==', fields.email);
-    }
-    if (screenshotFile) {
-      body.push('', '== Screenshot ==', '(Please attach: ' + screenshotFile.name + ')');
-    }
-    body.push('', '== Context ==', getContext());
+  // ── EmailJS initialisation ──────────────────────────────────
+  // Config is injected at build time as window.SQFLOW_EMAILJS_CONFIG.
+  // Required keys: publicKey, serviceId, templateId
+  var emailjsConfig = (typeof window !== 'undefined' && window.SQFLOW_EMAILJS_CONFIG) || {};
+  if (emailjsConfig.publicKey && typeof emailjs !== 'undefined') {
+    emailjs.init({ publicKey: emailjsConfig.publicKey });
+  }
 
-    var encodedSubject = encodeURIComponent(subject);
-    var encodedBody    = encodeURIComponent(body.join('\n'));
-    return 'mailto:sqlflow0@gmail.com?subject=' + encodedSubject + '&body=' + encodedBody;
+  // ── Inject contextual metadata into a hidden form field ─────
+  // emailjs.sendForm() picks up all named inputs in the form,
+  // including this hidden one that carries browser/app context.
+  var metaField = document.getElementById('bug-context-meta');
+  if (metaField) {
+    metaField.value = getContext();
   }
 
   // ── Form submit handler ─────────────────────────────────────
@@ -2500,7 +2482,7 @@ document.addEventListener('click', function (e) {
   function setSubmitting(on) {
     if (!submitBtn) return;
     submitBtn.disabled = on;
-    if (btnLabel) btnLabel.textContent = on ? 'Opening…' : 'Send Bug Report';
+    if (btnLabel) btnLabel.textContent = on ? 'Sending…' : 'Send Bug Report';
     if (spinner)  spinner.style.display = on ? '' : 'none';
     submitBtn.classList.toggle('bugreport-submit-btn--loading', on);
   }
@@ -2516,49 +2498,38 @@ document.addEventListener('click', function (e) {
       hideStatus();
 
       if (!validate()) {
-        // Focus first invalid field
         var firstErr = form.querySelector('.bugreport-input--error');
         if (firstErr) firstErr.focus();
         return;
       }
 
+      // Refresh metadata at submit time so it reflects the current state
+      if (metaField) metaField.value = getContext();
+
+      if (!emailjsConfig.serviceId || !emailjsConfig.templateId || typeof emailjs === 'undefined') {
+        // EmailJS not configured — surface a clear error
+        if (errorEl) {
+          errorEl.style.display = '';
+          var errMsg = errorEl.querySelector('p');
+          if (errMsg) errMsg.innerHTML = 'Bug reporting is not configured yet. Please email <a class="bugreport-direct-link" href="mailto:sqlflow0@gmail.com">sqlflow0@gmail.com</a> directly.';
+        }
+        return;
+      }
+
       setSubmitting(true);
 
-      var fields = {
-        title:       (getField('bug-title')         || {}).value || '',
-        description: (getField('bug-description')   || {}).value || '',
-        steps:       (getField('bug-steps')         || {}).value || '',
-        expected:    (getField('bug-expected')      || {}).value || '',
-        actual:      (getField('bug-actual')        || {}).value || '',
-        name:        (getField('bug-reporter-name') || {}).value || '',
-        email:       (getField('bug-reporter-email')|| {}).value || '',
-      };
-
-      var mailto = buildMailto(fields);
-
-      // Use a timeout so the browser registers the click intent
-      setTimeout(function () {
-        setSubmitting(false);
-        try {
-          // mailto: length limit ~2000 chars in some clients; truncate body gracefully
-          if (mailto.length > 2000) {
-            // Rebuild with a truncation notice
-            var shortFields = Object.assign({}, fields, {
-              description: fields.description.slice(0, 500) + (fields.description.length > 500 ? '…(truncated)' : ''),
-              steps: '',
-              expected: '',
-              actual: '',
-            });
-            mailto = buildMailto(shortFields);
-          }
-          window.location.href = mailto;
+      emailjs.sendForm(emailjsConfig.serviceId, emailjsConfig.templateId, form)
+        .then(function () {
+          setSubmitting(false);
           if (successEl) successEl.style.display = '';
           form.reset();
           clearScreenshot();
-        } catch (_) {
+          if (metaField) metaField.value = getContext();
+        })
+        .catch(function () {
+          setSubmitting(false);
           if (errorEl) errorEl.style.display = '';
-        }
-      }, 300);
+        });
     });
   }
 }());
