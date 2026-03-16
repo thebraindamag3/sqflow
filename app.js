@@ -1892,6 +1892,7 @@ function switchTab(tab) {
   el('panel-activetrades').style.display = tab === 'activetrades' ? '' : 'none';
   el('panel-history').style.display      = tab === 'history'      ? '' : 'none';
   el('panel-strategy').style.display     = tab === 'strategy'     ? '' : 'none';
+  el('panel-bugreport').style.display    = tab === 'bugreport'    ? '' : 'none';
   el('panel-about').style.display        = tab === 'about'        ? '' : 'none';
 
   // Hide asset selector on non-dashboard tabs — prevents confusing pair-switch
@@ -2303,3 +2304,261 @@ document.addEventListener('click', function (e) {
     }, 2000);
   });
 });
+
+// ── Bug Report Tab ────────────────────────────────────────────
+(function () {
+  'use strict';
+
+  var screenshotFile = null;
+
+  // ── Screenshot file picker ──────────────────────────────────
+  var uploadArea    = document.getElementById('bugreport-upload-area');
+  var fileInput     = document.getElementById('bug-screenshot');
+  var uploadInner   = document.getElementById('bugreport-upload-inner');
+  var previewWrap   = document.getElementById('bugreport-preview');
+  var previewImg    = document.getElementById('bugreport-preview-img');
+  var previewName   = document.getElementById('bugreport-preview-name');
+  var removeBtn     = document.getElementById('bugreport-remove-btn');
+
+  function showPreview(file) {
+    if (!file || !file.type.startsWith('image/')) return;
+    screenshotFile = file;
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      previewImg.src = e.target.result;
+      previewName.textContent = file.name + ' (' + (file.size / 1024).toFixed(0) + ' KB)';
+      uploadInner.style.display = 'none';
+      previewWrap.style.display = '';
+      uploadArea.classList.add('bugreport-upload-area--has-file');
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function clearScreenshot() {
+    screenshotFile = null;
+    fileInput.value = '';
+    previewImg.src = '';
+    previewName.textContent = '';
+    previewWrap.style.display = 'none';
+    uploadInner.style.display = '';
+    uploadArea.classList.remove('bugreport-upload-area--has-file');
+  }
+
+  if (fileInput) {
+    fileInput.addEventListener('change', function () {
+      if (fileInput.files && fileInput.files[0]) {
+        showPreview(fileInput.files[0]);
+      }
+    });
+  }
+
+  if (removeBtn) {
+    removeBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      clearScreenshot();
+    });
+  }
+
+  // Drag-and-drop support on the upload area
+  if (uploadArea) {
+    uploadArea.addEventListener('dragover', function (e) {
+      e.preventDefault();
+      uploadArea.classList.add('bugreport-upload-area--drag');
+    });
+    uploadArea.addEventListener('dragleave', function () {
+      uploadArea.classList.remove('bugreport-upload-area--drag');
+    });
+    uploadArea.addEventListener('drop', function (e) {
+      e.preventDefault();
+      uploadArea.classList.remove('bugreport-upload-area--drag');
+      var files = e.dataTransfer && e.dataTransfer.files;
+      if (files && files[0] && files[0].type.startsWith('image/')) {
+        showPreview(files[0]);
+      }
+    });
+    // Keyboard accessibility: Enter/Space activates the file input
+    uploadArea.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        fileInput && fileInput.click();
+      }
+    });
+    // Click on upload area triggers file input (but not when clicking child buttons)
+    uploadArea.addEventListener('click', function (e) {
+      if (e.target === removeBtn || removeBtn && removeBtn.contains(e.target)) return;
+      if (e.target === fileInput) return;
+      fileInput && fileInput.click();
+    });
+  }
+
+  // ── Inline field validation ─────────────────────────────────
+  function getField(id) { return document.getElementById(id); }
+  function setError(errorId, msg) {
+    var el = document.getElementById(errorId);
+    if (!el) return;
+    el.textContent = msg;
+    if (msg) {
+      el.style.display = '';
+      var input = el.previousElementSibling;
+      if (input) input.classList.add('bugreport-input--error');
+    } else {
+      el.style.display = 'none';
+      var input2 = el.previousElementSibling;
+      if (input2) input2.classList.remove('bugreport-input--error');
+    }
+  }
+
+  function validate() {
+    var valid = true;
+    var titleVal = (getField('bug-title') || {}).value || '';
+    var descVal  = (getField('bug-description') || {}).value || '';
+    if (!titleVal.trim()) {
+      setError('bug-title-error', 'Please enter a short bug title.');
+      valid = false;
+    } else {
+      setError('bug-title-error', '');
+    }
+    if (!descVal.trim()) {
+      setError('bug-description-error', 'Please describe the bug.');
+      valid = false;
+    } else {
+      setError('bug-description-error', '');
+    }
+    return valid;
+  }
+
+  // Live-clear errors as the user types
+  ['bug-title', 'bug-description'].forEach(function (id) {
+    var field = getField(id);
+    if (field) {
+      field.addEventListener('input', function () {
+        var errId = id + '-error';
+        if ((field.value || '').trim()) setError(errId, '');
+      });
+    }
+  });
+
+  // ── Collect contextual metadata ─────────────────────────────
+  function getContext() {
+    var lines = [];
+    try {
+      if (typeof state !== 'undefined') {
+        if (state.currentAsset)     lines.push('Asset: '     + state.currentAsset);
+        if (state.currentTimeframe) lines.push('Timeframe: ' + state.currentTimeframe);
+      }
+      var activeTab = (document.querySelector('.tab-nav-btn.active') || {}).dataset;
+      if (activeTab && activeTab.tab) lines.push('Active tab before report: ' + activeTab.tab);
+      lines.push('Browser: ' + navigator.userAgent);
+      lines.push('Screen: '  + window.screen.width + 'x' + window.screen.height);
+      lines.push('Viewport: ' + window.innerWidth + 'x' + window.innerHeight);
+    } catch (_) {}
+    return lines.join('\n');
+  }
+
+  // ── Build mailto URL ────────────────────────────────────────
+  function buildMailto(fields) {
+    var subject = '[Bug Report] ' + (fields.title || '(no title)');
+    var body = [
+      '== Bug Title ==',
+      fields.title || '',
+      '',
+      '== Description ==',
+      fields.description || '',
+    ];
+    if (fields.steps) {
+      body.push('', '== Steps to Reproduce ==', fields.steps);
+    }
+    if (fields.expected) {
+      body.push('', '== Expected Behavior ==', fields.expected);
+    }
+    if (fields.actual) {
+      body.push('', '== Actual Behavior ==', fields.actual);
+    }
+    if (fields.name) {
+      body.push('', '== Reporter ==', fields.name + (fields.email ? ' <' + fields.email + '>' : ''));
+    } else if (fields.email) {
+      body.push('', '== Reporter Email ==', fields.email);
+    }
+    if (screenshotFile) {
+      body.push('', '== Screenshot ==', '(Please attach: ' + screenshotFile.name + ')');
+    }
+    body.push('', '== Context ==', getContext());
+
+    var encodedSubject = encodeURIComponent(subject);
+    var encodedBody    = encodeURIComponent(body.join('\n'));
+    return 'mailto:sqlflow0@gmail.com?subject=' + encodedSubject + '&body=' + encodedBody;
+  }
+
+  // ── Form submit handler ─────────────────────────────────────
+  var form      = document.getElementById('bugreport-form');
+  var submitBtn = document.getElementById('bugreport-submit-btn');
+  var btnLabel  = document.getElementById('bugreport-btn-label');
+  var spinner   = document.getElementById('bugreport-spinner');
+  var successEl = document.getElementById('bugreport-success');
+  var errorEl   = document.getElementById('bugreport-error-state');
+
+  function setSubmitting(on) {
+    if (!submitBtn) return;
+    submitBtn.disabled = on;
+    if (btnLabel) btnLabel.textContent = on ? 'Opening…' : 'Send Bug Report';
+    if (spinner)  spinner.style.display = on ? '' : 'none';
+    submitBtn.classList.toggle('bugreport-submit-btn--loading', on);
+  }
+
+  function hideStatus() {
+    if (successEl) successEl.style.display = 'none';
+    if (errorEl)   errorEl.style.display   = 'none';
+  }
+
+  if (form) {
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      hideStatus();
+
+      if (!validate()) {
+        // Focus first invalid field
+        var firstErr = form.querySelector('.bugreport-input--error');
+        if (firstErr) firstErr.focus();
+        return;
+      }
+
+      setSubmitting(true);
+
+      var fields = {
+        title:       (getField('bug-title')         || {}).value || '',
+        description: (getField('bug-description')   || {}).value || '',
+        steps:       (getField('bug-steps')         || {}).value || '',
+        expected:    (getField('bug-expected')      || {}).value || '',
+        actual:      (getField('bug-actual')        || {}).value || '',
+        name:        (getField('bug-reporter-name') || {}).value || '',
+        email:       (getField('bug-reporter-email')|| {}).value || '',
+      };
+
+      var mailto = buildMailto(fields);
+
+      // Use a timeout so the browser registers the click intent
+      setTimeout(function () {
+        setSubmitting(false);
+        try {
+          // mailto: length limit ~2000 chars in some clients; truncate body gracefully
+          if (mailto.length > 2000) {
+            // Rebuild with a truncation notice
+            var shortFields = Object.assign({}, fields, {
+              description: fields.description.slice(0, 500) + (fields.description.length > 500 ? '…(truncated)' : ''),
+              steps: '',
+              expected: '',
+              actual: '',
+            });
+            mailto = buildMailto(shortFields);
+          }
+          window.location.href = mailto;
+          if (successEl) successEl.style.display = '';
+          form.reset();
+          clearScreenshot();
+        } catch (_) {
+          if (errorEl) errorEl.style.display = '';
+        }
+      }, 300);
+    });
+  }
+}());
