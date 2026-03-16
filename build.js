@@ -53,22 +53,6 @@ const hasFirebaseConfig = firebaseConfig.apiKey && firebaseConfig.apiKey !== 'yo
 // If absent, Twelve Data is skipped and Yahoo Finance fallback is used.
 const twelvedataKey = process.env.VITE_TWELVEDATA_API_KEY || '';
 
-// ── Read EmailJS config from environment variables ────────────
-// Required to enable real email delivery from the bug report form.
-// 1. Create a free account at https://www.emailjs.com
-// 2. Add a Gmail service connected to sqlflow0@gmail.com → copy the Service ID
-// 3. Create an email template mapping form fields → copy the Template ID
-// 4. Copy your Public Key from Account → API Keys
-// 5. Set these env vars in GitHub Actions secrets / Render env / .env:
-//    VITE_EMAILJS_PUBLIC_KEY   — your EmailJS public key
-//    VITE_EMAILJS_SERVICE_ID   — your EmailJS service ID (e.g. service_xxxxxx)
-//    VITE_EMAILJS_TEMPLATE_ID  — your EmailJS template ID (e.g. template_xxxxxx)
-const emailjsConfig = {
-  publicKey:  process.env.VITE_EMAILJS_PUBLIC_KEY  || '',
-  serviceId:  process.env.VITE_EMAILJS_SERVICE_ID  || '',
-  templateId: process.env.VITE_EMAILJS_TEMPLATE_ID || '',
-};
-const hasEmailjsConfig = emailjsConfig.publicKey && emailjsConfig.serviceId && emailjsConfig.templateId;
 
 // ── Copy static assets into dist/ ────────────────────────────
 const staticFiles = ['index.html', 'app.js', 'auth.js', 'auth.css', 'style.css', 'firebase.json', 'firestore.rules'];
@@ -90,12 +74,7 @@ for (const file of staticFiles) {
       html = html.replace('  <!-- Auth module must load before app.js', `${tdScript}  <!-- Auth module must load before app.js`);
       console.log('[build] Twelve Data key injected into index.html');
     }
-    // Inject window.SQFLOW_EMAILJS_CONFIG for the bug report form EmailJS delivery
-    if (hasEmailjsConfig) {
-      const ejScript = `  <script>window.SQFLOW_EMAILJS_CONFIG = ${JSON.stringify(emailjsConfig)};</script>\n`;
-      html = html.replace('  <!-- Auth module must load before app.js', `${ejScript}  <!-- Auth module must load before app.js`);
-      console.log('[build] EmailJS config injected into index.html');
-    }
+
     fs.writeFileSync(path.join(distDir, file), html);
   } else {
     fs.copyFileSync(src, path.join(distDir, file));

@@ -2455,23 +2455,44 @@ document.addEventListener('click', function (e) {
     return lines.join('\n');
   }
 
-  // ── EmailJS initialisation ──────────────────────────────────
-  // Config is injected at build time as window.SQFLOW_EMAILJS_CONFIG.
-  // Required keys: publicKey, serviceId, templateId
-  var emailjsConfig = (typeof window !== 'undefined' && window.SQFLOW_EMAILJS_CONFIG) || {};
-  if (emailjsConfig.publicKey && typeof emailjs !== 'undefined') {
-    emailjs.init({ publicKey: emailjsConfig.publicKey });
+  // ── Build GitHub prefilled new-issue URL ────────────────────
+  function val(id) { return ((document.getElementById(id) || {}).value || '').trim(); }
+
+  function buildGitHubIssueUrl() {
+    var title       = val('bug-title');
+    var description = val('bug-description');
+    var steps       = val('bug-steps');
+    var expected    = val('bug-expected');
+    var actual      = val('bug-actual');
+    var name        = val('bug-reporter-name');
+    var email       = val('bug-reporter-email');
+    var ctx         = getContext();
+    var filename    = screenshotFile ? screenshotFile.name : null;
+
+    var body = '## Summary\n' + description + '\n\n';
+
+    if (steps)    body += '## Steps to Reproduce\n' + steps + '\n\n';
+    if (expected) body += '## Expected Behavior\n' + expected + '\n\n';
+    if (actual)   body += '## Actual Behavior\n'   + actual  + '\n\n';
+
+    if (name || email) {
+      body += '## Reporter\n';
+      if (name)  body += '- Name: ' + name  + '\n';
+      if (email) body += '- Email: ' + email + '\n';
+      body += '\n';
+    }
+
+    if (ctx) body += '## Environment\n```\n' + ctx + '\n```\n\n';
+
+    if (filename) {
+      body += '## Screenshot\n> **' + filename + '** was selected in the app — please drag and drop it into this issue before submitting.\n\n';
+    }
+
+    var base = 'https://github.com/thebraindamag3/sqflow/issues/new';
+    return base + '?title=' + encodeURIComponent(title) + '&body=' + encodeURIComponent(body);
   }
 
-  // ── Inject contextual metadata into a hidden form field ─────
-  // emailjs.sendForm() picks up all named inputs in the form,
-  // including this hidden one that carries browser/app context.
-  var metaField = document.getElementById('bug-context-meta');
-  if (metaField) {
-    metaField.value = getContext();
-  }
-
-  // ── Form submit handler ─────────────────────────────────────
+  // ── Form state ───────────────────────────────────────────────
   var form      = document.getElementById('bugreport-form');
   var submitBtn = document.getElementById('bugreport-submit-btn');
   var btnLabel  = document.getElementById('bugreport-btn-label');
@@ -2482,7 +2503,7 @@ document.addEventListener('click', function (e) {
   function setSubmitting(on) {
     if (!submitBtn) return;
     submitBtn.disabled = on;
-    if (btnLabel) btnLabel.textContent = on ? 'Sending…' : 'Send Bug Report';
+    if (btnLabel) btnLabel.textContent = on ? 'Opening GitHub…' : 'Create GitHub Issue';
     if (spinner)  spinner.style.display = on ? '' : 'none';
     submitBtn.classList.toggle('bugreport-submit-btn--loading', on);
   }
@@ -2503,33 +2524,26 @@ document.addEventListener('click', function (e) {
         return;
       }
 
-      // Refresh metadata at submit time so it reflects the current state
-      if (metaField) metaField.value = getContext();
-
-      if (!emailjsConfig.serviceId || !emailjsConfig.templateId || typeof emailjs === 'undefined') {
-        // EmailJS not configured — surface a clear error
-        if (errorEl) {
-          errorEl.style.display = '';
-          var errMsg = errorEl.querySelector('p');
-          if (errMsg) errMsg.innerHTML = 'Bug reporting is not configured yet. Please email <a class="bugreport-direct-link" href="mailto:sqlflow0@gmail.com">sqlflow0@gmail.com</a> directly.';
-        }
-        return;
-      }
-
       setSubmitting(true);
 
-      emailjs.sendForm(emailjsConfig.serviceId, emailjsConfig.templateId, form)
-        .then(function () {
-          setSubmitting(false);
-          if (successEl) successEl.style.display = '';
-          form.reset();
-          clearScreenshot();
-          if (metaField) metaField.value = getContext();
-        })
-        .catch(function () {
-          setSubmitting(false);
-          if (errorEl) errorEl.style.display = '';
-        });
+      var url    = buildGitHubIssueUrl();
+      var win    = window.open(url, '_blank', 'noopener,noreferrer');
+      var opened = win !== null && win !== undefined;
+
+      setSubmitting(false);
+
+      if (opened) {
+        if (successEl) successEl.style.display = '';
+        form.reset();
+        clearScreenshot();
+      } else {
+        // Popup blocked — show error with a direct fallback link
+        if (errorEl) {
+          errorEl.style.display = '';
+          var link = document.getElementById('bugreport-fallback-link');
+          if (link) link.href = url;
+        }
+      }
     });
   }
 }());
