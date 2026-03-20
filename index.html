@@ -63,6 +63,7 @@
         History
         <span class="tab-badge" id="history-tab-badge" style="display:none" aria-label="Trade count"></span>
       </button>
+      <button class="tab-nav-btn" data-tab="agent" aria-selected="false" role="tab">AI Agent</button>
       <button class="tab-nav-btn" data-tab="strategy" aria-selected="false" role="tab">Strategy</button>
       <button class="tab-nav-btn" data-tab="bugreport" aria-selected="false" role="tab">Report a Bug</button>
       <button class="tab-nav-btn" data-tab="about" aria-selected="false" role="tab">About</button>
@@ -260,6 +261,9 @@
         <div class="history-list" id="history-list" role="list" aria-label="Closed trades"></div>
       </section>
     </div>
+
+    <!-- AI AGENT PANEL -->
+    <div id="panel-agent" style="display:none" role="tabpanel" aria-label="AI Agent"></div>
 
     <!-- STRATEGY PANEL -->
     <div id="panel-strategy" style="display:none" role="tabpanel" aria-label="Strategy guide">
@@ -1004,5 +1008,6 @@
   <!-- Auth module must load before app.js so Auth global is available -->
   <script src="auth.js?v=2"></script>
   <script src="app.js?v=14"></script>
+  <script src="agent.js?v=1"></script>
 </body>
 </html>

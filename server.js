@@ -57,7 +57,7 @@ function setCORSHeaders(req, res) {
     // Vary: Origin tells caches to store separate responses per origin.
     res.setHeader('Vary', 'Origin');
   }
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }
 
@@ -172,6 +172,28 @@ function httpsGet(reqUrl) {
     };
 
     get(reqUrl, 0);
+  });
+}
+
+// ── HTTPS POST helper ────────────────────────────────────────
+function httpsPOST(reqUrl, headers, body) {
+  return new Promise((resolve, reject) => {
+    const url = new URL(reqUrl);
+    const options = {
+      hostname: url.hostname,
+      path: url.pathname,
+      method: 'POST',
+      headers: { ...headers, 'Content-Length': Buffer.byteLength(body) },
+    };
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', chunk => { data += chunk; });
+      res.on('end', () => resolve({ statusCode: res.statusCode, body: data }));
+      res.on('error', reject);
+    });
+    req.on('error', reject);
+    req.write(body);
+    req.end();
   });
 }
 
@@ -381,6 +403,35 @@ const server = http.createServer((req, res) => {
   // Route: /api/market-data (Yahoo Finance proxy)
   if (pathname === '/api/market-data' && req.method === 'GET') {
     handleMarketData(query, res);
+    return;
+  }
+
+  // Route: /api/claude — Anthropic API proxy
+  if (pathname === '/api/claude' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', async () => {
+      try {
+        const payload = JSON.parse(body);
+        const apiKey = process.env.ANTHROPIC_API_KEY;
+        if (!apiKey) {
+          res.writeHead(503, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'ANTHROPIC_API_KEY not configured on server.' }));
+          return;
+        }
+        const anthropicRes = await httpsPOST('https://api.anthropic.com/v1/messages', {
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json',
+        }, JSON.stringify(payload));
+
+        res.writeHead(anthropicRes.statusCode, { 'Content-Type': 'application/json' });
+        res.end(anthropicRes.body);
+      } catch (err) {
+        res.writeHead(502, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: err.message }));
+      }
+    });
     return;
   }
 
