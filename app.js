@@ -1787,6 +1787,40 @@ function updateUI(r, capital) {
 
   el('last-update').textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     + (USER_TZ_ABBR ? '\u00a0' + USER_TZ_ABBR : '');
+
+  // Expose current computed state for agent.js
+  window.sqflowState = {
+    asset:      state.currentAsset,
+    assetName:  ASSETS[state.currentAsset] ? ASSETS[state.currentAsset].name : state.currentAsset,
+    timeframe:  state.currentTimeframe,
+    price:      r.currentPrice,
+    signal:     r.signal,
+    metCount:   r.metCount,
+    direction:  r.direction,
+    conditions: r.conditions,
+    indicators: {
+      ema10:   r.ema10,
+      ema55:   r.ema55,
+      ema200:  r.ema200,
+      rsi:     r.rsi,
+      adx:     r.adx,
+      bbUpper: r.bb ? r.bb.upper : null,
+      bbLower: r.bb ? r.bb.lower : null,
+      squeeze: { sqzOn: r.sqz ? r.sqz.sqzOn : false, sqzJustFired: r.sqzJustFired, histogram: r.sqz ? r.sqz.val : 0 },
+      poc:     r.poc,
+    },
+    tradeParams: {
+      entry:      r.currentPrice,
+      stopLoss:   r.stopLoss,
+      takeProfit: r.takeProfit,
+      leverage:   r.leverage,
+    },
+    marketOpen: isMarketOpen(state.currentAsset),
+    timestamp:  Date.now(),
+  };
+
+  // Notify agent panel that state was updated (e.g. after a Refresh Now)
+  window.dispatchEvent(new CustomEvent('sqflow:stateUpdated'));
 }
 
 // ============================================================
@@ -1891,9 +1925,14 @@ function switchTab(tab) {
   el('panel-dashboard').style.display    = tab === 'dashboard'    ? '' : 'none';
   el('panel-activetrades').style.display = tab === 'activetrades' ? '' : 'none';
   el('panel-history').style.display      = tab === 'history'      ? '' : 'none';
+  el('panel-agent').style.display        = tab === 'agent'        ? '' : 'none';
   el('panel-strategy').style.display     = tab === 'strategy'     ? '' : 'none';
   el('panel-bugreport').style.display    = tab === 'bugreport'    ? '' : 'none';
   el('panel-about').style.display        = tab === 'about'        ? '' : 'none';
+
+  if (tab === 'agent' && window.sqflowState) {
+    window.dispatchEvent(new CustomEvent('sqflow:agentTabActivated'));
+  }
 
   // Hide asset selector on non-dashboard tabs — prevents confusing pair-switch
   // flicker in Active Trades and History where the selected pair is irrelevant.
